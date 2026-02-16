@@ -1,0 +1,97 @@
+= SecureSrc Identity Manager
+
+This is an identity management (aka password manager) program that is centered around simplicity and transparency.
+One cannot trust code that cannot be understood, and one cannot trust code that is unavailable.
+Therefore this program endeavors to remain small and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
+
+IMPORTANT: The author of this software and this page is NOT a security researcher.
+What follows is an exposition of motiviations and strategies, so that users/reviewers may spot flaws in the thinking and so that users may evaluate for themselves the considerations that went into this software.
+The author IS a professional programmer with over 20 years of Java experience, including participating in security discussions for major open source projects.
+So while you should question what you read, it is not an entirely uninformed opinion.
+It's unlikely to be perfect, but of course, the hope is it's significantly better than nothing.
+
+NOTE: I wrote this because I wanted it, not for you. I'm sharing it in the hopes that it will help others. Please read LICENSE.txt before using it. I will try to maintain it from time to time, but am not paid to do so.
+
+== Circle of Trust
+
+Another key issue in security is the need to trust somebody.
+It is entirely intractable for every person who wants to maintain passwords, to write their own password management system.
+Not only is it time-consuming and difficult, errors may result in a false sense of security, which in turn causes the user to expose the data to attackers.
+
+NOTE: This project is names SecureSrc because it's intended to be built from source code, minimizing who you have to trust.
+
+Since we can't all just DIY password management, we need to trust someone to do it for us.
+SecureSrc attempts (NO WARRANTY, see license!) to limit the trust to only two parties.
+
+1. You will be asked to trust the Java vendor of your choice.
+This could be Oracle Corporation, Azul Systems, Amazon (Correto) or any other JDK vendor.
+Technically, you don't even have to trust their binary distribution and can compile your own copy of OpenJDK.
+Before you do however, please note that in doing so you place absolute faith in a MYRIAD of native libraries currently installed on your machine.
+JDK vendors are multi-million or multi-billion dollar corporations, and there is a fair chance that they will secure their build environment better than you will.
+If you are a professional security researcher that might not be true, in which case, have at it!
+2. You will be asked to trust that we have correctly used the security routines supplied by Java. THIS IS NOT trivial and we recognize it.
+That is absolutely why the code for this program is Open Source.
+If you have technical chops or know someone who does, we very much want you to have them evaluate what we have done here.
+If you think you have found an issues by all means let us know with an issue report
+
+Here are some things we specifically will not ask you to trust.
+
+1. We will not ask you to trust billions of lines of 3rd party dependencies. This program only uses Java SE libraries.
+It has no classpath, nor will it ever have any CVE not derived from itself or Java.
+2. We will not ever ask you to trust any form of network communications. Nothing in our code should ever make any network connection.
+If you find that somehow it does, LET US KNOW, IT'S A BUG.
+
+== Data Security Risk
+
+All efforts at security are means by which we attempt to *increase the time required* for an attacker to discover something secret. There is also another type of risk: Catastrophic loss.
+There is no such thing as perfect security.
+One should assume that:
+
+. Any computer attached to a network of any kind will eventually be compromised by a remote attacker.
+. Any physical storage will eventually be accessed, stolen or lost in catastrophe (such as flood or fire).
+. File formats will become unsupported eventually (that file of passwords you made in a Lotus 1-2-3 spreadsheet or WordPerfect document in the 1990's is likely inaccessible in 2026!)
+. Media on which data is stored will degrade.
+
+.. Magnetic media suffers "bitflip" errors from cosmic rays,
+.. Optical media clouds or may be scratched.
+.. Even paper may yellow or be attacked by insects.
+
+. Data kept on most computers will wind up being accessed by
+.. Data backup programs (that will make copies and likely send the copy over the network)
+.. Virus Scanners (that we trust, but maybe we only want to trust them so far)
+.. Disk indexing programs designed to make it quick and easy to find files on your computer.
+. Encryption routines will become compromised as researchers discover weaknesses and fatal flaws, and as the available machine power or new technologies (such as quantum computing) become available.
+
+Security vs loss and security vs attackers are diametrically opposed, since the more copies you have of data, the more locations you need to protect from attackers.
+Thus, to make it possible to guard against both, we want to produce a strongly encrypted copy of our data for which we are not (very) concerned about attackers.
+We also want to make it possible to upgrade our encryption levels over time.
+
+== Tradeoffs & Practicality
+IMPORTANT: Key points: Use the defaults, Only run on trusted devices, that have encrypted hard-drives, backup freely and in multiple places.
+
+The unfortunate reality is that to a large extent encryption is a hardware power race. To produce stronger encryption requires a more powerful computer, or more time spent encrypting the data.
+For practical purposes we must find the balance between usability and security.
+This program will have default settings, but as computers get faster and if the algorithms chosen are later cracked they may need to be adjusted.
+This program is not meant to secure Nuclear Launch codes or other world disaster level information. It's meant to provide a reasonable security for one's passwords. You will have the option of upping the security level by choosing stronger encryption, but you should not do this lightly. The defaults are what we have spent time trying to implement correctly. Choosing something other than the default will expose the possibility that you are using an insufficiently configured algorithm (or may simply not work in some cases, file a bug or pull request in such cases)
+
+This program only offers encryption at rest. It does NOT encrypt data while it is in memory and IS vulnerable to memory scanning.
+Keeping this program open and running when not in use is not advised. Even after close it is possible that the JVM will fail to erase strings from memory (just abandoning them when it shuts down), so it is recommended ONLY to run this program on a device you believe to be secure, and reboot the device on some regular basis.
+It is also helpful for improved security to only run on devices that have encrypted hard drives, since the operating system may at any time swap our (unprotected) memory into a swap file on disk. If the disk is not encrypted, that memory may be discoverable indefinitely.
+
+== Usage
+
+We will never distribute binary code. This would involve trusting the platform hosting the binaries (i.e. github, owned by Microsoft, Maven central, controled by Sonatype, etc.) Therefore, we supply simple instructions for compiling the executable version from source.
+
+=== Recommended Way
+
+=== Lazy, Less secure Way
+
+These instructions are more for Java programmer types who are willing to trust standard build tools. Follow the Recommended approach if you don't know what some of this means.
+
+. Download and isntall a JDK you choose to trust (NOT a JRE, a JDK!)
+. Check out the source from gitHub
+. run `./gradlew build`
+. in the /build/libs directory, you can now run java -jar
+
+
+

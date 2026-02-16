@@ -1,9 +1,10 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Context extends NamedObject implements Comparable<Context> {
+public class Context extends NamedObject implements Serializable, Comparable<Context> {
   List<Application> applications = new ArrayList<>();
 
   public Context(String name, String description) {

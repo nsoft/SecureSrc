@@ -1,8 +1,9 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serializable;
 import java.time.Instant;
 
-public class NamedObject {
+public class NamedObject implements Serializable {
   String name;
   String description;
   Instant createdDate;

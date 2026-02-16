@@ -1,10 +1,11 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class Application extends NamedObject implements Comparable<Application> {
+public class Application extends NamedObject implements Serializable, Comparable<Application> {
 
   List<Login> logins = new ArrayList<>();
   List<Login> activeLogins = new ArrayList<>();

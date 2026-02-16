@@ -5,15 +5,8 @@ plugins {
 group = 'com.needhamsoftware.misc.md5hashid'
 version = '1.0-SNAPSHOT'
 
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-}
-
-test {
-    useJUnitPlatform()
+jar {
+    manifest {
+        attributes("Main-Class": 'com.needhamsoftware.securesrc.Main')
+    }
 }

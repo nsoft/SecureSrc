@@ -8,16 +8,22 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -25,7 +31,9 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -43,18 +51,38 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
+import com.needhamsoftware.securesrc.EncryptionException;
+import com.needhamsoftware.securesrc.Persistor;
+import com.needhamsoftware.securesrc.encrypt.Encryption;
+import com.needhamsoftware.securesrc.encrypt.KeyWithSalt;
 import com.needhamsoftware.securesrc.model.Application;
 import com.needhamsoftware.securesrc.model.Context;
 import com.needhamsoftware.securesrc.model.Login;
 
+@SuppressWarnings("CallToPrintStackTrace")
 public class TopFrame extends JFrame {
+  private static final String DEFAULT_CIPHER_SPEC = "AES/GCM/NoPadding";
+  private static final String USER_HOME = System.getProperty("user.home");
+  private static final File USER_HOME_DIR;
+  public static final String CIPHER_PROP = "com.needhamsoftware.securesrc.cipher";
+  public static final int KEY_SIZE = 128;
+
+  static {
+    try {
+      USER_HOME_DIR = new File(USER_HOME).getCanonicalFile();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME, "ssim.dat");
+  private File location = DEFAULT_SAVE_LOCATION;
+
   private final JMenuItem newApplicationPopupItem;
   private final JMenuItem newContextPopupItem;
   private JPanel topPanel;
   private JTree contextTree;
   private JScrollPane treeScroll;
   private JPanel loginDisplay;
-  private JLabel loginNameLabel;
   private JTextField loginName;
   private JTextArea loginDescription;
   private JTextField identity;
@@ -77,11 +105,24 @@ public class TopFrame extends JFrame {
   Application newApplication;
   Login newLogin;
   private DefaultMutableTreeNode root;
-  private JDialog newContextDialog;
   private AddApplicationDialog addApplicationDialog;
+  private String outputCipher = DEFAULT_CIPHER_SPEC;
+  Persistor persistor;
+  KeyWithSalt masterPassword;
+
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
+    String property = System.getProperty(CIPHER_PROP);
+    if (property != null && !property.isEmpty()) {
+      outputCipher = property;
+    }
+    try {
+      persistor = new Persistor(location, outputCipher);
+    } catch (EncryptionException e) {
+      JOptionPane.showMessageDialog(this,e.getMessage() + " You can try an alternative Cipher by passing in -D"+CIPHER_PROP+"='<cipher>' argument. The program will now shut down safely.");
+      throw new RuntimeException(e);
+    }
     $$$setupUI$$$();
     Border border = BorderFactory.createLineBorder(Color.GRAY);
     loginDescription.setBorder(border);
@@ -147,8 +188,29 @@ public class TopFrame extends JFrame {
         if (selected != null) {
           Application app = (Application) selected.getUserObject();
           app.getLogins().add(newLogin);
-          syncState();
-          buildTree(true);
+          if (masterPassword == null) {
+            JPasswordField pf = new JPasswordField();
+            int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (okCxl == JOptionPane.OK_OPTION) {
+              try {
+                masterPassword = Encryption.getKey("AES", KEY_SIZE, pf.getPassword());
+              } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                JOptionPane.showMessageDialog(this,"Unable to has password for " + outputCipher+"\n" +
+                    ex.getClass() + " Exception message:" + ex.getMessage());
+                ex.printStackTrace();
+              }
+            }
+          }
+          try {
+            persistor.write(contextList,masterPassword);
+            syncState();
+            buildTree(true);
+          } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
+                   InvalidKeyException ex) {
+            JOptionPane.showMessageDialog(this,"Unable to save data using " + outputCipher+"\n" +
+                ex.getClass() + " Exception message:" + ex.getMessage());
+            ex.printStackTrace();
+          }
         }
       }
 
