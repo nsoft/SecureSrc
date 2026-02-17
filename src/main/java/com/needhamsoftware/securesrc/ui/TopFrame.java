@@ -72,8 +72,9 @@ public class TopFrame extends JFrame {
       throw new RuntimeException(e);
     }
   }
+
   private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME, "ssim.dat");
-  private  File location = DEFAULT_SAVE_LOCATION;
+  private File location = DEFAULT_SAVE_LOCATION;
 
   private final JMenuItem newApplicationPopupItem;
   private final JMenuItem newContextPopupItem;
@@ -118,7 +119,7 @@ public class TopFrame extends JFrame {
     try {
       persistor = new Persistor(location, outputCipher);
     } catch (EncryptionException e) {
-      JOptionPane.showMessageDialog(this,e.getMessage() + " You can try an alternative Cipher by passing in -D"+CIPHER_PROP+"='<cipher>' argument. The program will now shut down safely.");
+      JOptionPane.showMessageDialog(this, e.getMessage() + " You can try an alternative Cipher by passing in -D" + CIPHER_PROP + "='<cipher>' argument. The program will now shut down safely.");
       throw new RuntimeException(e);
     }
     if (location.exists()) {
@@ -196,7 +197,7 @@ public class TopFrame extends JFrame {
       String description = loginDescription.getText();
       String identity = TopFrame.this.identity.getText();
       String secret = TopFrame.this.secret.getText();
-      newLogin = new Login(true,name,description, Instant.now(),identity,secret,"","",null,"",null);
+      newLogin = new Login(true, name, description, Instant.now(), identity, secret, "", "", null, "", null);
       current = newLogin;
       TreePath selectionPath = contextTree.getSelectionPath();
       if (selectionPath != null) {
@@ -213,12 +214,12 @@ public class TopFrame extends JFrame {
             return;
           }
           try {
-            persistor.write(contextList,masterPassword);
+            persistor.write(contextList, masterPassword);
             syncState();
             buildTree(true);
           } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
                    InvalidKeyException | InvalidAlgorithmParameterException ex) {
-            JOptionPane.showMessageDialog(this,"Unable to save data using " + outputCipher+"\n" +
+            JOptionPane.showMessageDialog(this, "Unable to save data using " + outputCipher + "\n" +
                 ex.getClass() + " Exception message:" + ex.getMessage());
             ex.printStackTrace();
           }
@@ -242,7 +243,7 @@ public class TopFrame extends JFrame {
       try {
         return Encryption.getKey("AES", KEY_SIZE, password, salt);
       } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
-        JOptionPane.showMessageDialog(this,"Unable to has password for " + outputCipher+"\n" +
+        JOptionPane.showMessageDialog(this, "Unable to has password for " + outputCipher + "\n" +
             ex.getClass() + " Exception message:" + ex.getMessage());
         ex.printStackTrace();
       }
@@ -429,7 +430,6 @@ public class TopFrame extends JFrame {
     createUIComponents();
     topPanel = new JPanel();
     topPanel.setLayout(new BorderLayout(0, 0));
-    topPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5), null, TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, this.$$$getFont$$$(null, -1, -1, topPanel.getFont()), null));
     final JLabel label1 = new JLabel();
     Font label1Font = this.$$$getFont$$$("Chandas", -1, 20, label1.getFont());
     if (label1Font != null) label1.setFont(label1Font);
@@ -437,7 +437,7 @@ public class TopFrame extends JFrame {
     label1.setText("SecureSrc Identity Manager");
     topPanel.add(label1, BorderLayout.NORTH);
     final JSplitPane splitPane1 = new JSplitPane();
-    topPanel.add(splitPane1, BorderLayout.EAST);
+    topPanel.add(splitPane1, BorderLayout.CENTER);
     final JPanel panel1 = new JPanel();
     panel1.setLayout(new BorderLayout(0, 0));
     splitPane1.setLeftComponent(panel1);
@@ -450,13 +450,14 @@ public class TopFrame extends JFrame {
     splitPane1.setRightComponent(panel2);
     loginDisplay = new JPanel();
     loginDisplay.setLayout(new GridBagLayout());
+    loginDisplay.setEnabled(true);
     GridBagConstraints gbc;
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 2;
     gbc.weightx = 1.0;
     gbc.weighty = 1.0;
-    gbc.fill = GridBagConstraints.VERTICAL;
+    gbc.fill = GridBagConstraints.BOTH;
     panel2.add(loginDisplay, gbc);
     loginDisplay.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), "Login Info", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
     final JLabel label2 = new JLabel();
@@ -500,6 +501,7 @@ public class TopFrame extends JFrame {
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 9;
+    gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(spacer4, gbc);
     final JLabel label3 = new JLabel();
