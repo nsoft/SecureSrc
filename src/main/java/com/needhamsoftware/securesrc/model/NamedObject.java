@@ -2,11 +2,21 @@ package com.needhamsoftware.securesrc.model;
 
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.UUID;
 
 public class NamedObject implements Serializable {
   String name;
   String description;
   Instant createdDate;
+  String uuid;
+
+  public NamedObject(String name, String description) {
+    this.name = name;
+    this.description = description;
+    this.createdDate = Instant.now();
+    this.uuid = UUID.randomUUID().toString();
+  }
+
 
   public String getName() {
     return name;
@@ -32,11 +42,11 @@ public class NamedObject implements Serializable {
     this.createdDate = createdDate;
   }
 
-  public NamedObject(String name, String description) {
-    this.name = name;
-    this.description = description;
-    this.createdDate = Instant.now();
+  public String getUuid() {
+    return uuid;
   }
+
+
   public NamedObject(String name) {
     this(name, "");
   }

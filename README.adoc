@@ -21,7 +21,7 @@ Not only is it time-consuming and difficult, errors may result in a false sense 
 NOTE: This project is names SecureSrc because it's intended to be built from source code, minimizing who you have to trust.
 
 Since we can't all just DIY password management, we need to trust someone to do it for us.
-SecureSrc attempts (NO WARRANTY, see license!) to limit the trust to only two parties.
+SecureSrc attempts (NO WARRANTY, see license!) to limit the trust to only three parties.
 
 1. You will be asked to trust the Java vendor of your choice.
 This could be Oracle Corporation, Azul Systems, Amazon (Correto) or any other JDK vendor.

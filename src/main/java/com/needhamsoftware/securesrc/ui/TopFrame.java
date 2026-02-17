@@ -56,6 +56,10 @@ import com.needhamsoftware.securesrc.encrypt.KeyWithSalt;
 import com.needhamsoftware.securesrc.model.Application;
 import com.needhamsoftware.securesrc.model.Context;
 import com.needhamsoftware.securesrc.model.Login;
+import com.needhamsoftware.securesrc.search.LuceneSearch;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
 @SuppressWarnings("CallToPrintStackTrace")
 public class TopFrame extends JFrame {
@@ -74,6 +78,7 @@ public class TopFrame extends JFrame {
   }
 
   private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME, "ssim.dat");
+  private final LuceneSearch searcher;
   private File location = DEFAULT_SAVE_LOCATION;
 
   private final JMenuItem newApplicationPopupItem;
@@ -95,7 +100,7 @@ public class TopFrame extends JFrame {
   private JPanel contextPanel;
   private JPanel applicationPanel;
   private JPanel searchPanel;
-  private JTextField textField1;
+  private JTextField query;
   private JButton searchButton;
   private JEditorPane editorPane1;
   private final JPopupMenu treeContextMenu;
@@ -235,7 +240,18 @@ public class TopFrame extends JFrame {
       }
 
     });
+    this.searcher = new LuceneSearch();
 
+    searchButton.addActionListener(e -> {
+      try {
+        List<Document> search = searcher.search(query.getText());
+        for (Document document : search) {
+          System.out.println(document.getField("name"));
+        }
+      } catch (IOException ex) {
+        throw new RuntimeException(ex);
+      }
+    });
     topPanel.setVisible(true);
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     this.add($$$getRootComponent$$$());
@@ -244,10 +260,10 @@ public class TopFrame extends JFrame {
   }
 
   private void updateLoginPanel(Login login) {
-    loginName.setText(login.name());
-    loginDescription.setText(login.description());
-    identity.setText(login.identity());
-    secret.setText(login.secret());
+    loginName.setText(login.getName());
+    loginDescription.setText(login.getDescription());
+    identity.setText(login.getIdentity());
+    secret.setText(login.getSecret());
     updateButton.setEnabled(true);
   }
 
@@ -422,6 +438,7 @@ public class TopFrame extends JFrame {
         contextTree.expandPath(new TreePath(c.getPath()));
       }
     });
+    searcher.indexTreeModel(contextTree.getModel());
     return root;
   }
 
@@ -766,14 +783,14 @@ public class TopFrame extends JFrame {
     searchPanel.setLayout(new GridBagLayout());
     searchPanel.setAlignmentY(0.5f);
     splitPane1.setRightComponent(searchPanel);
-    textField1 = new JTextField();
-    textField1.setColumns(30);
+    query = new JTextField();
+    query.setColumns(30);
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 1;
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(textField1, gbc);
+    searchPanel.add(query, gbc);
     final JPanel spacer19 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 3;

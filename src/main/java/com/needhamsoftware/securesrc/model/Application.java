@@ -23,7 +23,7 @@ public class Application extends NamedObject implements Serializable, Comparable
   }
 
   public List<Login> getActiveLogins() {
-    return getLogins().stream().filter(Login::active).collect(Collectors.toList());
+    return getLogins().stream().filter(Login::isActive).collect(Collectors.toList());
   }
 
   @Override
