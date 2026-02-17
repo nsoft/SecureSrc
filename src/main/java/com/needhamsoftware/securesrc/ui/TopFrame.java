@@ -12,8 +12,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -27,7 +26,6 @@ import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
-import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -75,7 +73,7 @@ public class TopFrame extends JFrame {
     }
   }
   private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME, "ssim.dat");
-  private File location = DEFAULT_SAVE_LOCATION;
+  private  File location = DEFAULT_SAVE_LOCATION;
 
   private final JMenuItem newApplicationPopupItem;
   private final JMenuItem newContextPopupItem;
@@ -122,6 +120,24 @@ public class TopFrame extends JFrame {
     } catch (EncryptionException e) {
       JOptionPane.showMessageDialog(this,e.getMessage() + " You can try an alternative Cipher by passing in -D"+CIPHER_PROP+"='<cipher>' argument. The program will now shut down safely.");
       throw new RuntimeException(e);
+    }
+    if (location.exists()) {
+      try {
+        contextList = persistor.readEncryptedStorage(s -> {
+          KeyWithSalt keyWithSalt = null;
+          while (keyWithSalt == null) {
+            // if this is failing we're doomed
+            keyWithSalt = askPassword(s);
+          }
+          masterPassword = keyWithSalt;
+          return masterPassword;
+        });
+      } catch (NoSuchPaddingException | InvalidKeySpecException | NoSuchAlgorithmException | InvalidKeyException |
+               IOException | ClassNotFoundException | InvalidAlgorithmParameterException e) {
+        // fatal - just die
+        e.printStackTrace();
+        System.exit(1);
+      }
     }
     $$$setupUI$$$();
     Border border = BorderFactory.createLineBorder(Color.GRAY);
@@ -189,24 +205,19 @@ public class TopFrame extends JFrame {
           Application app = (Application) selected.getUserObject();
           app.getLogins().add(newLogin);
           if (masterPassword == null) {
-            JPasswordField pf = new JPasswordField();
-            int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-            if (okCxl == JOptionPane.OK_OPTION) {
-              try {
-                masterPassword = Encryption.getKey("AES", KEY_SIZE, pf.getPassword());
-              } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
-                JOptionPane.showMessageDialog(this,"Unable to has password for " + outputCipher+"\n" +
-                    ex.getClass() + " Exception message:" + ex.getMessage());
-                ex.printStackTrace();
-              }
-            }
+            // This should only happen if there was no data file to load.
+            masterPassword = askPassword(null);
+          }
+          if (masterPassword == null) {
+            // we failed don't try to write anything.
+            return;
           }
           try {
             persistor.write(contextList,masterPassword);
             syncState();
             buildTree(true);
           } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
-                   InvalidKeyException ex) {
+                   InvalidKeyException | InvalidAlgorithmParameterException ex) {
             JOptionPane.showMessageDialog(this,"Unable to save data using " + outputCipher+"\n" +
                 ex.getClass() + " Exception message:" + ex.getMessage());
             ex.printStackTrace();
@@ -219,6 +230,24 @@ public class TopFrame extends JFrame {
     topPanel.setVisible(true);
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     this.add($$$getRootComponent$$$());
+    syncState();
+    buildTree(true);
+  }
+
+  private KeyWithSalt askPassword(byte[] salt) {
+    JPasswordField pf = new JPasswordField();
+    int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+    char[] password = pf.getPassword();
+    if (okCxl == JOptionPane.OK_OPTION) {
+      try {
+        return Encryption.getKey("AES", KEY_SIZE, password, salt);
+      } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+        JOptionPane.showMessageDialog(this,"Unable to has password for " + outputCipher+"\n" +
+            ex.getClass() + " Exception message:" + ex.getMessage());
+        ex.printStackTrace();
+      }
+    }
+    return null;
   }
 
   private void clearApplicationPanel() {

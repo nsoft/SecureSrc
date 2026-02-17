@@ -3,6 +3,7 @@ package com.needhamsoftware.securesrc.encrypt;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -13,6 +14,7 @@ import javax.crypto.CipherOutputStream;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import com.needhamsoftware.securesrc.EncryptionException;
@@ -40,29 +42,37 @@ public class Encryption {
     }
   }
 
-  public static KeyWithSalt getKey(String cipher, int keySize, char[] password) throws NoSuchAlgorithmException, InvalidKeySpecException {
-    byte[] salt = new byte[100];
-    SecureRandom random = new SecureRandom();
-    random.nextBytes(salt);
+  public static KeyWithSalt getKey(String cipher, int keySize, char[] password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    if (salt == null) {
+      salt = new byte[128];
+      SecureRandom random = new SecureRandom();
+      random.nextBytes(salt);
+    }
     PBEKeySpec pbeKeySpec = new PBEKeySpec(password, salt, KEY_HASH_ITERATIONS, keySize);
     SecretKey pbeKey = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(pbeKeySpec);
     SecretKeySpec secretKeySpec = new SecretKeySpec(pbeKey.getEncoded(), cipher);
     return new KeyWithSalt(secretKeySpec, salt);
+
   }
 
-  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key) throws InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key, int encryptMode, byte[] iv) throws InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
     Cipher result = Cipher.getInstance(cipherspec);
-    result.init(Cipher.ENCRYPT_MODE, key.key());
+    if(iv == null) {
+      iv = new byte[12];
+      new SecureRandom().nextBytes(iv);
+    }
+    GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, iv);
+    result.init(encryptMode, key.key(), gcmParameterSpec);
     return result;
   }
 
 
-
   public static byte[] encryptData(List<Context> contextList, Cipher cipher) throws IOException {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    CipherOutputStream cos = new CipherOutputStream(baos, cipher);
-    ObjectOutputStream oos = new ObjectOutputStream(cos);
-    oos.writeObject(contextList);
+    try (ObjectOutputStream oos = new ObjectOutputStream(new CipherOutputStream(baos, cipher))) {
+      oos.writeObject(contextList);
+    }
     return baos.toByteArray();
   }
+
 }

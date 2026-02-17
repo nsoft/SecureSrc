@@ -3,17 +3,25 @@ package com.needhamsoftware.securesrc;
 import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.List;
+import java.util.function.Function;
 import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
 import javax.crypto.NoSuchPaddingException;
 import com.needhamsoftware.securesrc.encrypt.Encryption;
 import com.needhamsoftware.securesrc.encrypt.KeyWithSalt;
@@ -43,8 +51,10 @@ import com.needhamsoftware.securesrc.model.Context;
  *   <li>File Format Version (int)</li>
  *   <li>Cipher Spec length (int, number of bytes to read)</li>
  *   <li>Salt length(int, number of bytes to read)</li>
+ *   <li>initialization vector length (int, number of bytes to read)</li>
  *   <li>Cipher Spec (String) (in UTF-8)</li>
  *   <li>Salt</li>
+ *   <li>initialization vector data</li>
  *   <li>Serialized Java Objects (encrypted)</li>
  * </ol>
  *
@@ -56,51 +66,96 @@ public class Persistor {
   public static final int VERSION = 1;
 
   private final Cipher cipher;
-  private File location;
+  private final File location;
 
   /**
    * Create a new Persistor for the specified cipher.
    *
-   * @param location
-   * @param cipherSpec
-   * @throws EncryptionException
+   * @param location the location to which our save file will be written
+   * @param cipherSpec the text specification of our encryption algorithm, see
+   *                   <a href="https://docs.oracle.com/en/java/javase/22/docs/api/java.base/javax/crypto/Cipher.html">
+   *                     Cipher class javadoc for details</a>
+   * @throws EncryptionException if we can't load the specified Cipher, with a user-friendly message.
    */
   public Persistor(File location, String cipherSpec) throws EncryptionException {
     this.location = location;
     this.cipher = Encryption.loadCipher(cipherSpec);
   }
 
-  public void write(List<Context> contextList, KeyWithSalt masterPassword) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+  public void write(List<Context> contextList, KeyWithSalt masterPassword) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
     // important! do all encryption before touching the file to minimize the chance we 
     // fail half-way through writing the file
-    Cipher temp;
+    Cipher temp; // Build a new one so that we never loose track of the original settings or have race conditions.
     String cipherspec = cipher.getAlgorithm();
-    temp = Encryption.getConfiguredCipher(cipherspec, masterPassword);
+    temp = Encryption.getConfiguredCipher(cipherspec, masterPassword, Cipher.ENCRYPT_MODE, null);
     byte[] encryptedArray = Encryption.encryptData(contextList, temp);
     byte[] cipherSpecBytes = cipherspec.getBytes(StandardCharsets.UTF_8);
-
+    byte[] ivData = temp.getIV();
     // now we start touching the disk.
     makeBackups();
-    saveData(cipherSpecBytes, encryptedArray, masterPassword.salt());
+    saveData(cipherSpecBytes, encryptedArray, masterPassword.salt(), ivData);
+  }
+
+  /**
+   * Read our encrypted storage.
+   *
+   * @param p a producer callback likely asking the user for their password.
+   *
+   * @return A list of contexts loaded from encrypted storage.
+   * @throws NoSuchPaddingException if the padding in cipher spec is invalid
+   * @throws InvalidKeySpecException if the cipher spec is invalid
+   * @throws NoSuchAlgorithmException if the algorithm is not supported by the JVM
+   * @throws InvalidKeyException if the key supplied is invalid
+   * @throws IOException if any of the stream IO operations fail.
+   */
+  public List<Context> readEncryptedStorage(Function<byte[],KeyWithSalt> p) throws NoSuchPaddingException, InvalidKeySpecException, NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException {
+
+    var dis = new DataInputStream(new FileInputStream(location));
+    int version = dis.readInt();
+    if (VERSION != version) {
+      // there has only been one version, but in case an old copy is someday invoked on something newer...
+      throw new IllegalStateException("File version is " + version + " but we require version " + VERSION + " Are you using the wrong (old) version of the SecureSrc?");
+    }
+    int specLen = dis.readInt();
+    int saltLen = dis.readInt();
+    int ivLen = dis.readInt();
+    byte[] cipherSpecBytes = dis.readNBytes(specLen);
+    byte[] salt = dis.readNBytes(saltLen);
+    byte[] iv = dis.readNBytes(ivLen);
+    byte[] encrypted = dis.readAllBytes();
+    Cipher temp;
+    String cipherSpec = new String(cipherSpecBytes,StandardCharsets.UTF_8);
+    temp = Encryption.getConfiguredCipher(cipherSpec, p.apply(salt), Cipher.DECRYPT_MODE, iv);
+
+    ByteArrayInputStream bais = new ByteArrayInputStream(encrypted);
+    dis.close();
+    try (ObjectInput ois = new ObjectInputStream(new CipherInputStream(bais, temp))) {
+      //noinspection unchecked
+      return (List<Context>) ois.readObject();
+    }
   }
 
 
-  private void saveData(byte[] cipherSpecBytes, byte[] byteArray, byte[] masterPwSalt) throws IOException {
-    var dos = new DataOutputStream(new FileOutputStream(location));
-    dos.writeInt(VERSION);
-    dos.writeInt(cipherSpecBytes.length);
-    dos.writeInt(masterPwSalt.length);
-    dos.write(cipherSpecBytes);
-    dos.write(masterPwSalt);
-    dos.write(byteArray);
-    dos.close();
+  private void saveData(byte[] cipherSpecBytes, byte[] encryptedData, byte[] masterPwSalt, byte[] ivData) throws IOException {
+    try (var dos = new DataOutputStream(new FileOutputStream(location))) {
+      dos.writeInt(VERSION);
+      dos.writeInt(cipherSpecBytes.length);
+      dos.writeInt(masterPwSalt.length);
+      dos.writeInt(ivData.length);
+      dos.write(cipherSpecBytes);
+      dos.write(masterPwSalt);
+      dos.write(ivData);
+      dos.write(encryptedData);
+    }
   }
+
+
 
   /**
    * We keep 10 total copies of our passwords to guard against bitrot and system
    * crashes during file output, etc.
    *
-   * @throws IOException
+   * @throws IOException if we can't read or write one of the files.
    */
   private void makeBackups() throws IOException {
     String canonicalPath = location.getCanonicalPath();
