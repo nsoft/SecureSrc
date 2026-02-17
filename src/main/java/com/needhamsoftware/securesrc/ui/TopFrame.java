@@ -154,22 +154,26 @@ public class TopFrame extends JFrame {
     treeContextMenu.add(newContextPopupItem);
     treeContextMenu.add(newApplicationPopupItem);
     treeContextMenu.setVisible(false);
-    contextTree.addTreeSelectionListener(new TreeSelectionListener() {
-      @Override
-      public void valueChanged(TreeSelectionEvent e) {
-        TreePath selectionPath = contextTree.getSelectionPath();
-        if (selectionPath != null) {
-          selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
-          if (selected != null) {
-            Object userObject = selected.getUserObject();
-            if (userObject instanceof Context context) {
-              updateContextPanel(context);
-              clearApplicationPanel();
-            }
-            if (userObject instanceof Application application) {
-              updateApplicationPanel(application);
-              updateContextPanel((Context) ((DefaultMutableTreeNode) selected.getParent()).getUserObject());
-            }
+    contextTree.addTreeSelectionListener(e -> {
+      TreePath selectionPath = contextTree.getSelectionPath();
+      if (selectionPath != null) {
+        selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
+        if (selected != null) {
+          Object userObject = selected.getUserObject();
+          if (userObject instanceof Context context) {
+            updateContextPanel(context);
+          }
+          if (userObject instanceof Application application) {
+            DefaultMutableTreeNode context = (DefaultMutableTreeNode) selected.getParent();
+            updateContextPanel((Context) context.getUserObject());
+            updateApplicationPanel(application);
+          }
+          if (userObject instanceof Login login) {
+            DefaultMutableTreeNode application = (DefaultMutableTreeNode) selected.getParent();
+            DefaultMutableTreeNode context = (DefaultMutableTreeNode) application.getParent();
+            updateContextPanel((Context) context.getUserObject());
+            updateApplicationPanel((Application) application.getUserObject());
+            updateLoginPanel(login);
           }
         }
       }
@@ -235,6 +239,14 @@ public class TopFrame extends JFrame {
     buildTree(true);
   }
 
+  private void updateLoginPanel(Login login) {
+    loginName.setText(login.name());
+    loginDescription.setText(login.description());
+    identity.setText(login.identity());
+    secret.setText(login.secret());
+    updateButton.setEnabled(true);
+  }
+
   private KeyWithSalt askPassword(byte[] salt) {
     JPasswordField pf = new JPasswordField();
     int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -264,6 +276,8 @@ public class TopFrame extends JFrame {
     loginDescription.setText("");
     identity.setText("");
     secret.setText("");
+    updateButton.setEnabled(false);
+
   }
 
   private void enableLoginPanel(boolean enabled) {
@@ -286,6 +300,7 @@ public class TopFrame extends JFrame {
     contextName.setText(context.getName());
     contextDescription.setText(context.getDescription());
     contextPanel.setToolTipText("Created on:" + context.getCreatedDate().toString());
+    clearApplicationPanel();
   }
 
   private void addApplication() {
