@@ -4,13 +4,15 @@ This is an identity management (aka password manager) program that is centered a
 One cannot trust code that cannot be understood, and one cannot trust code that is unavailable.
 Therefore this program endeavors to remain small and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
 
+:toc:
+
 IMPORTANT: The author of this software and this page is NOT a security researcher.
 What follows is an exposition of motiviations and strategies, so that users/reviewers may spot flaws in the thinking and so that users may evaluate for themselves the considerations that went into this software.
 The author IS a professional programmer with over 20 years of Java experience, including participating in security discussions for major open source projects.
 So while you should question what you read, it is not an entirely uninformed opinion.
 It's unlikely to be perfect, but of course, the hope is it's significantly better than nothing.
 
-NOTE: I wrote this because I wanted it, not for you. I'm sharing it in the hopes that it will help others. Please read LICENSE.txt before using it. I will try to maintain it from time to time, but am not paid to do so.
+NOTE: I wrote this because I wanted it, not for you. I'm sharing it in the hopes that it will help others. For the love God, humanity, yourself or anything else you might cherish, PLEASE read LICENSE.txt before using it. I will try to maintain it from time to time, but am not paid to do so. Pull Requests and issue reports are welcome.
 
 == Circle of Trust
 
@@ -84,7 +86,15 @@ It is also helpful for improved security to only run on devices that have encryp
 
 We will never distribute binary code. This would involve trusting the platform hosting the binaries (i.e. github, owned by Microsoft, Maven central, controled by Sonatype, etc.) Therefore, we supply simple instructions for compiling the executable version from source.
 
+=== Building
+
+We do not build this for you and you should not trust us to do so. Step 1 is to build the software from source code
+
 === Recommended Way
+
+. Download sourcecode from github releases (Comming Soon)
+. Unpack the zipfile and enter the resulting directory (folder)
+.
 
 === Lazy, Less secure Way
 

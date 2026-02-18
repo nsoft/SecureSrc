@@ -5,11 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeModel;
-import javax.swing.tree.TreeNode;
 import com.needhamsoftware.securesrc.model.NamedObject;
-import com.needhamsoftware.securesrc.ui.TopFrame;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -20,10 +18,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -46,9 +44,10 @@ public class LuceneSearch {
     StandardAnalyzer analyzer = new StandardAnalyzer();
     IndexWriterConfig config = new IndexWriterConfig(analyzer);
     try {
-      IndexWriter indexWriter = new IndexWriter(index, config);
-      indexTree((DefaultMutableTreeNode) model.getRoot(), indexWriter);
-      indexWriter.close();
+      try (IndexWriter indexWriter = new IndexWriter(index, config)) {
+        indexWriter.deleteAll();
+        indexTree((DefaultMutableTreeNode) model.getRoot(), indexWriter);
+      }
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -81,11 +80,11 @@ public class LuceneSearch {
     if (obj instanceof NamedObject userObject) {
       String name = userObject.getName();
       text.append(name).append(" ");
-      doc.add(new StringField("name", name, Field.Store.YES));
+      doc.add(new TextField("name", name, Field.Store.YES));
 
       String description = userObject.getDescription();
       text.append(description);
-      doc.add(new StringField("description", description, Field.Store.YES));
+      doc.add(new TextField("description", description, Field.Store.YES));
       doc.add(new TextField("text", text.toString(), Field.Store.YES));
       doc.add(new StringField("id",((NamedObject) obj).getUuid(), Field.Store.YES));
       try {
@@ -94,31 +93,33 @@ public class LuceneSearch {
         //noinspection CallToPrintStackTrace
         e.printStackTrace(); // don't throw and fail the other docs
       }
-
     }
   }
 
-  public List<Document> search(String queryStr) throws IOException {
-    IndexReader reader = DirectoryReader.open(index);
-    IndexSearcher searcher = new IndexSearcher(reader);
-    Query query = new TermQuery(new Term("text", queryStr));
-    TopDocs topDocs = searcher.search(query, 10);
-    try {
-      return Arrays.stream(topDocs.scoreDocs).map(sd -> {
-        try {
-          return reader.storedFields().document(sd.doc);
-        } catch (IOException e) {
-          throw new RuntimeException(e);
+  public List<Document> search(String queryStr) throws IOException, ParseException {
+    try (IndexReader reader = DirectoryReader.open(index)) {
+      IndexSearcher searcher = new IndexSearcher(reader);
+      Analyzer analyzer = new StandardAnalyzer();
+      QueryParser parser = new QueryParser("text", analyzer);
+      Query query = parser.parse(queryStr);
+      System.out.println(query);
+      TopDocs topDocs = searcher.search(query, 10);
+      try {
+        return Arrays.stream(topDocs.scoreDocs).map(sd -> {
+          try {
+            return reader.storedFields().document(sd.doc);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }).toList();
+      } catch (RuntimeException r) {
+        if (r.getCause() instanceof IOException) {
+          throw (IOException) r.getCause();
+        } else {
+          throw r;
         }
-      }).toList();
-    } catch (RuntimeException r) {
-      if (r.getCause() instanceof IOException) {
-        throw (IOException) r.getCause();
-      } else {
-        throw r;
       }
     }
-
   }
 
 }

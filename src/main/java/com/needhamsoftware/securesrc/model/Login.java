@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public class Login extends NamedObject implements Serializable {
 
-  private final boolean active;
+  private boolean active;
   private final String identity;
   private final String secret;
   private final String authApp;
@@ -65,5 +65,9 @@ public class Login extends NamedObject implements Serializable {
   @Override
   public String toString() {
     return name;
+  }
+
+  public void inActivate() {
+    active = false;
   }
 }

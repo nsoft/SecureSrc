@@ -2,7 +2,7 @@
 <form xmlns="http://www.intellij.com/uidesigner/form/" version="1" bind-to-class="com.needhamsoftware.securesrc.ui.TopFrame">
   <grid id="27dc6" binding="topPanel" layout-manager="BorderLayout" hgap="0" vgap="0">
     <constraints>
-      <xy x="20" y="20" width="879" height="554"/>
+      <xy x="20" y="20" width="963" height="554"/>
     </constraints>
     <properties/>
     <border type="none">
@@ -215,7 +215,7 @@
                         <properties/>
                         <border type="none"/>
                         <children>
-                          <component id="7f15f" class="javax.swing.JButton" binding="addNewButton" default-binding="true">
+                          <component id="7f15f" class="javax.swing.JButton" binding="addNewLoginButton">
                             <constraints/>
                             <properties>
                               <enabled value="false"/>
@@ -228,7 +228,7 @@
                             <border type="none"/>
                             <children/>
                           </grid>
-                          <component id="30a08" class="javax.swing.JButton" binding="updateButton" default-binding="true">
+                          <component id="30a08" class="javax.swing.JButton" binding="updateLoginButton">
                             <constraints/>
                             <properties>
                               <enabled value="false"/>
@@ -285,7 +285,7 @@
                       <hspacer id="9a6f2">
                         <constraints>
                           <grid row="0" column="4" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
-                          <gridbag weightx="1.0" weighty="0.0"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
                         </constraints>
                       </hspacer>
                       <hspacer id="923a4">
@@ -323,6 +323,30 @@
                           <text value=""/>
                         </properties>
                       </component>
+                      <component id="5400c" class="javax.swing.JButton" binding="addNewContextButton">
+                        <constraints>
+                          <grid row="0" column="5" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
+                        </constraints>
+                        <properties>
+                          <text value="Add New"/>
+                        </properties>
+                      </component>
+                      <component id="fa495" class="javax.swing.JButton" binding="updateContextButton">
+                        <constraints>
+                          <grid row="2" column="5" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
+                        </constraints>
+                        <properties>
+                          <text value="Update"/>
+                        </properties>
+                      </component>
+                      <hspacer id="68ee9">
+                        <constraints>
+                          <grid row="0" column="6" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="1.0" weighty="0.0"/>
+                        </constraints>
+                      </hspacer>
                     </children>
                   </grid>
                   <grid id="984c1" binding="applicationPanel" layout-manager="GridBagLayout">
@@ -368,7 +392,7 @@
                       <hspacer id="7f4e5">
                         <constraints>
                           <grid row="0" column="4" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
-                          <gridbag weightx="1.0" weighty="0.0"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
                         </constraints>
                       </hspacer>
                       <hspacer id="75ffb">
@@ -406,6 +430,30 @@
                           <text value=""/>
                         </properties>
                       </component>
+                      <component id="8065d" class="javax.swing.JButton" binding="addNewApplicationButton">
+                        <constraints>
+                          <grid row="0" column="5" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
+                        </constraints>
+                        <properties>
+                          <text value="Add New"/>
+                        </properties>
+                      </component>
+                      <component id="df191" class="javax.swing.JButton" binding="updateApplicationButton">
+                        <constraints>
+                          <grid row="2" column="5" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="0.0" weighty="0.0"/>
+                        </constraints>
+                        <properties>
+                          <text value="Update"/>
+                        </properties>
+                      </component>
+                      <hspacer id="20499">
+                        <constraints>
+                          <grid row="0" column="6" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                          <gridbag weightx="1.0" weighty="0.0"/>
+                        </constraints>
+                      </hspacer>
                     </children>
                   </grid>
                 </children>
@@ -426,10 +474,11 @@
                   <grid row="1" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                     <preferred-size width="150" height="-1"/>
                   </grid>
-                  <gridbag weightx="0.0" weighty="0.0"/>
+                  <gridbag weightx="1.0" weighty="0.0"/>
                 </constraints>
                 <properties>
                   <columns value="30"/>
+                  <minimumSize width="100" height="34"/>
                 </properties>
               </component>
               <hspacer id="ba9fb">
@@ -467,7 +516,7 @@
                 <properties/>
                 <border type="line" title=" Search Results"/>
                 <children>
-                  <component id="63221" class="javax.swing.JEditorPane" binding="editorPane1" default-binding="true">
+                  <component id="63221" class="javax.swing.JEditorPane" binding="searchResults">
                     <constraints>
                       <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="6" hsize-policy="6" anchor="0" fill="3" indent="0" use-parent-layout="false">
                         <preferred-size width="150" height="50"/>

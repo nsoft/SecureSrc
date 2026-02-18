@@ -13,6 +13,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -43,6 +44,7 @@ import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.text.StyleContext;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -56,10 +58,10 @@ import com.needhamsoftware.securesrc.encrypt.KeyWithSalt;
 import com.needhamsoftware.securesrc.model.Application;
 import com.needhamsoftware.securesrc.model.Context;
 import com.needhamsoftware.securesrc.model.Login;
+import com.needhamsoftware.securesrc.model.NamedObject;
 import com.needhamsoftware.securesrc.search.LuceneSearch;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.queryparser.classic.ParseException;
 
 @SuppressWarnings("CallToPrintStackTrace")
 public class TopFrame extends JFrame {
@@ -91,8 +93,8 @@ public class TopFrame extends JFrame {
   private JTextArea loginDescription;
   private JTextField identity;
   private JTextField secret;
-  private JButton addNewButton;
-  private JButton updateButton;
+  private JButton addNewLoginButton;
+  private JButton updateLoginButton;
   private JTextField contextName;
   private JTextArea contextDescription;
   private JTextField applicatioName;
@@ -102,7 +104,11 @@ public class TopFrame extends JFrame {
   private JPanel searchPanel;
   private JTextField query;
   private JButton searchButton;
-  private JEditorPane editorPane1;
+  private JEditorPane searchResults;
+  private JButton addNewContextButton;
+  private JButton updateContextButton;
+  private JButton addNewApplicationButton;
+  private JButton updateApplicationButton;
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
@@ -158,8 +164,14 @@ public class TopFrame extends JFrame {
     treeContextMenu = new JPopupMenu();
     newContextPopupItem = new JMenuItem("New Context");
     newContextPopupItem.addActionListener(e -> addContext());
+    addNewContextButton.addActionListener(e -> addContext());
+    updateContextButton.addActionListener(e -> updateContext());
     newApplicationPopupItem = new JMenuItem("New Application");
     newApplicationPopupItem.addActionListener(e -> addApplication());
+    addNewApplicationButton.addActionListener(e -> addApplication());
+    updateApplicationButton.addActionListener(e -> updateApplication());
+    addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields()));
+    updateLoginButton.addActionListener(e -> updateLogin());
     treeContextMenu.add(newContextPopupItem);
     treeContextMenu.add(newApplicationPopupItem);
     treeContextMenu.setVisible(false);
@@ -205,51 +217,38 @@ public class TopFrame extends JFrame {
       }
     });
 
-    addNewButton.addActionListener(e -> {
-      String name = loginName.getText();
-      String description = loginDescription.getText();
-      String identity = TopFrame.this.identity.getText();
-      String secret = TopFrame.this.secret.getText();
-      newLogin = new Login(true, name, description, Instant.now(), identity, secret, "", "", null, "", null);
-      current = newLogin;
-      TreePath selectionPath = contextTree.getSelectionPath();
-      if (selectionPath != null) {
-        selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
-        if (selected != null) {
-          Application app = (Application) selected.getUserObject();
-          app.getLogins().add(newLogin);
-          if (masterPassword == null) {
-            // This should only happen if there was no data file to load.
-            masterPassword = askPassword(null);
-          }
-          if (masterPassword == null) {
-            // we failed don't try to write anything.
-            return;
-          }
-          try {
-            persistor.write(contextList, masterPassword);
-            syncState();
-            buildTree(true);
-          } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
-                   InvalidKeyException | InvalidAlgorithmParameterException ex) {
-            JOptionPane.showMessageDialog(this, "Unable to save data using " + outputCipher + "\n" +
-                ex.getClass() + " Exception message:" + ex.getMessage());
-            ex.printStackTrace();
-          }
-        }
-      }
 
-    });
     this.searcher = new LuceneSearch();
 
     searchButton.addActionListener(e -> {
       try {
         List<Document> search = searcher.search(query.getText());
+        // build html for our JEditorPane to display
+        StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
         for (Document document : search) {
-          System.out.println(document.getField("name"));
+          html.append("<li><a href=\"http://");
+          html.append(escapeHtml(document.get("id")));
+          html.append("\"><strong>");
+          html.append(escapeHtml(document.get("name")));
+          html.append("</strong></a><br/>");
+          html.append(escapeHtml(document.get("description")));
+          html.append("<hr/></li>");
         }
+        html.append("</body></html>");
+        searchResults.setText(html.toString());
       } catch (IOException ex) {
         throw new RuntimeException(ex);
+      } catch (ParseException ex) {
+        JOptionPane.showMessageDialog(this, ex.getMessage());
+      }
+    });
+    searchResults.addHyperlinkListener(e -> {
+      HyperlinkEvent.EventType eventType = e.getEventType();
+      if (eventType.equals(HyperlinkEvent.EventType.ACTIVATED)) {
+        URL url = e.getURL();
+        String uuid = url.getHost();
+        DefaultMutableTreeNode inTree = findInTree(uuid, root);
+        contextTree.setSelectionPath(new TreePath(inTree.getPath()));
       }
     });
     topPanel.setVisible(true);
@@ -259,16 +258,127 @@ public class TopFrame extends JFrame {
     buildTree(true);
   }
 
+  private void updateContext() {
+    Context userObject = (Context) selected.getUserObject();
+    userObject.setName(contextName.getText());
+    userObject.setDescription(contextDescription.getText());
+    persist();
+  }
+
+  private void updateApplication() {
+    Application userObject = (Application) selected.getUserObject();
+    userObject.setName(applicatioName.getText());
+    userObject.setDescription(applicationDescription.getText());
+    persist();
+  }
+
+  private void updateLogin() {
+    Login newLogin1 = loginFromFormFields();
+    Login userObject = (Login) selected.getUserObject();
+    userObject.inActivate();
+    contextTree.setSelectionPath(new TreePath(((DefaultMutableTreeNode) selected.getParent()).getPath()));
+    createLogin(newLogin1);
+  }
+
+  private Login loginFromFormFields() {
+    String name = loginName.getText();
+    String description = loginDescription.getText();
+    String identity = TopFrame.this.identity.getText();
+    String secret = TopFrame.this.secret.getText();
+    return new Login(true, name, description, Instant.now(), identity, secret,
+        "", "", null, "", null);
+  }
+
+  private void createLogin(Login newLogin1) {
+
+    newLogin = newLogin1;
+    current = newLogin;
+    TreePath selectionPath = contextTree.getSelectionPath();
+    if (selectionPath != null) {
+      selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
+      if (selected != null) {
+        Application app = (Application) selected.getUserObject();
+        app.getLogins().add(newLogin);
+        if (masterPassword == null) {
+          // This should only happen if there was no data file to load.
+          masterPassword = askPassword(null);
+        }
+        if (masterPassword == null) {
+          // we failed don't try to write anything.
+          return;
+        }
+        persist();
+      }
+    }
+  }
+
+  private void persist() {
+    try {
+      persistor.write(contextList, masterPassword);
+      syncState();
+      buildTree(true);
+    } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
+             InvalidKeyException | InvalidAlgorithmParameterException ex) {
+      JOptionPane.showMessageDialog(this, "Unable to save data using " + outputCipher + "\n" +
+          ex.getClass() + " Exception message:" + ex.getMessage());
+      ex.printStackTrace();
+    }
+  }
+
+  DefaultMutableTreeNode findInTree(String uuid, DefaultMutableTreeNode root) {
+    if (uuid == null) {
+      return null;
+    }
+    Object userObject = root.getUserObject();
+    if (userObject instanceof NamedObject namedObject && uuid.equals(namedObject.getUuid())) {
+      return root;
+    }
+    int childCount = root.getChildCount();
+    for (int i = 0; i < childCount; i++) {
+      DefaultMutableTreeNode inTree = findInTree(uuid, (DefaultMutableTreeNode) root.getChildAt(i));
+      if (inTree != null) {
+        return inTree;
+      }
+    }
+    return null;
+  }
+
+  public static String escapeHtml(String html) {
+    if (html == null) {
+      return "null";
+    }
+
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < html.length(); i++) {
+      char ch = html.charAt(i);
+      if (ch == '<') {
+        sb.append("&lt;");
+      } else if (ch == '>') {
+        sb.append("&gt;");
+      } else if (ch == '"') {
+        sb.append("&quot;");
+      } else if (ch == '&') {
+        sb.append("&amp;");
+      } else if (ch < ' ' || ch == '\'') {
+        sb.append("&#").append((int) ch).append(';');
+      } else {
+        sb.append(ch);
+      }
+    }
+    return sb.toString();
+  }
+
   private void updateLoginPanel(Login login) {
     loginName.setText(login.getName());
     loginDescription.setText(login.getDescription());
     identity.setText(login.getIdentity());
     secret.setText(login.getSecret());
-    updateButton.setEnabled(true);
+    updateLoginButton.setEnabled(true);
   }
 
   private KeyWithSalt askPassword(byte[] salt) {
     JPasswordField pf = new JPasswordField();
+
     int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
     char[] password = pf.getPassword();
     if (okCxl == JOptionPane.OK_OPTION) {
@@ -289,6 +399,7 @@ public class TopFrame extends JFrame {
     this.applicationPanel.setToolTipText("");
     clearLoginPanel();
     enableLoginPanel(false);
+    updateApplicationButton.setEnabled(false);
   }
 
   private void clearLoginPanel() {
@@ -296,8 +407,7 @@ public class TopFrame extends JFrame {
     loginDescription.setText("");
     identity.setText("");
     secret.setText("");
-    updateButton.setEnabled(false);
-
+    updateLoginButton.setEnabled(false);
   }
 
   private void enableLoginPanel(boolean enabled) {
@@ -305,13 +415,15 @@ public class TopFrame extends JFrame {
     loginDescription.setEnabled(enabled);
     identity.setEnabled(enabled);
     secret.setEnabled(enabled);
-    addNewButton.setEnabled(enabled);
+    addNewLoginButton.setEnabled(enabled);
   }
 
   private void updateApplicationPanel(Application context) {
     applicatioName.setText(context.getName());
     applicationDescription.setText(context.getDescription());
     applicationPanel.setToolTipText("Created on:" + context.getCreatedDate().toString());
+    updateApplicationButton.setEnabled(true);
+    addNewApplicationButton.setEnabled(false);
     clearLoginPanel();
     enableLoginPanel(true);
   }
@@ -320,6 +432,9 @@ public class TopFrame extends JFrame {
     contextName.setText(context.getName());
     contextDescription.setText(context.getDescription());
     contextPanel.setToolTipText("Created on:" + context.getCreatedDate().toString());
+    updateContextButton.setEnabled(true);
+    addNewContextButton.setEnabled(false);
+    addNewApplicationButton.setEnabled(true);
     clearApplicationPanel();
   }
 
@@ -452,7 +567,7 @@ public class TopFrame extends JFrame {
   }
 
   private void syncState() {
-    updateButton.setEnabled(current != null);
+    updateLoginButton.setEnabled(current != null);
   }
 
   /**
@@ -624,17 +739,17 @@ public class TopFrame extends JFrame {
     gbc.gridwidth = 3;
     gbc.fill = GridBagConstraints.BOTH;
     loginDisplay.add(panel3, gbc);
-    addNewButton = new JButton();
-    addNewButton.setEnabled(false);
-    addNewButton.setText("Add New");
-    panel3.add(addNewButton);
+    addNewLoginButton = new JButton();
+    addNewLoginButton.setEnabled(false);
+    addNewLoginButton.setText("Add New");
+    panel3.add(addNewLoginButton);
     final JPanel panel4 = new JPanel();
     panel4.setLayout(new BorderLayout(0, 0));
     panel3.add(panel4);
-    updateButton = new JButton();
-    updateButton.setEnabled(false);
-    updateButton.setText("Update");
-    panel3.add(updateButton);
+    updateLoginButton = new JButton();
+    updateLoginButton.setEnabled(false);
+    updateLoginButton.setText("Update");
+    panel3.add(updateLoginButton);
     contextPanel = new JPanel();
     contextPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -676,7 +791,6 @@ public class TopFrame extends JFrame {
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 0;
-    gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     contextPanel.add(spacer11, gbc);
     final JPanel spacer12 = new JPanel();
@@ -708,6 +822,27 @@ public class TopFrame extends JFrame {
     gbc.gridy = 2;
     gbc.fill = GridBagConstraints.BOTH;
     contextPanel.add(contextDescription, gbc);
+    addNewContextButton = new JButton();
+    addNewContextButton.setText("Add New");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 5;
+    gbc.gridy = 0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    contextPanel.add(addNewContextButton, gbc);
+    updateContextButton = new JButton();
+    updateContextButton.setText("Update");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 5;
+    gbc.gridy = 2;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    contextPanel.add(updateContextButton, gbc);
+    final JPanel spacer14 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 6;
+    gbc.gridy = 0;
+    gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    contextPanel.add(spacer14, gbc);
     applicationPanel = new JPanel();
     applicationPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -723,18 +858,18 @@ public class TopFrame extends JFrame {
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
     applicationPanel.add(label8, gbc);
-    final JPanel spacer14 = new JPanel();
+    final JPanel spacer15 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer14, gbc);
-    final JPanel spacer15 = new JPanel();
+    applicationPanel.add(spacer15, gbc);
+    final JPanel spacer16 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 3;
     gbc.fill = GridBagConstraints.VERTICAL;
-    applicationPanel.add(spacer15, gbc);
+    applicationPanel.add(spacer16, gbc);
     applicatioName = new JTextField();
     applicatioName.setColumns(48);
     gbc = new GridBagConstraints();
@@ -743,19 +878,18 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     applicationPanel.add(applicatioName, gbc);
-    final JPanel spacer16 = new JPanel();
+    final JPanel spacer17 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 0;
-    gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer16, gbc);
-    final JPanel spacer17 = new JPanel();
+    applicationPanel.add(spacer17, gbc);
+    final JPanel spacer18 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer17, gbc);
+    applicationPanel.add(spacer18, gbc);
     final JLabel label9 = new JLabel();
     label9.setText("Description");
     gbc = new GridBagConstraints();
@@ -763,12 +897,12 @@ public class TopFrame extends JFrame {
     gbc.gridy = 2;
     gbc.anchor = GridBagConstraints.WEST;
     applicationPanel.add(label9, gbc);
-    final JPanel spacer18 = new JPanel();
+    final JPanel spacer19 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer18, gbc);
+    applicationPanel.add(spacer19, gbc);
     applicationDescription = new JTextArea();
     applicationDescription.setColumns(48);
     applicationDescription.setLineWrap(true);
@@ -779,24 +913,47 @@ public class TopFrame extends JFrame {
     gbc.gridy = 2;
     gbc.fill = GridBagConstraints.BOTH;
     applicationPanel.add(applicationDescription, gbc);
+    addNewApplicationButton = new JButton();
+    addNewApplicationButton.setText("Add New");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 5;
+    gbc.gridy = 0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    applicationPanel.add(addNewApplicationButton, gbc);
+    updateApplicationButton = new JButton();
+    updateApplicationButton.setText("Update");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 5;
+    gbc.gridy = 2;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    applicationPanel.add(updateApplicationButton, gbc);
+    final JPanel spacer20 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 6;
+    gbc.gridy = 0;
+    gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    applicationPanel.add(spacer20, gbc);
     searchPanel = new JPanel();
     searchPanel.setLayout(new GridBagLayout());
     searchPanel.setAlignmentY(0.5f);
     splitPane1.setRightComponent(searchPanel);
     query = new JTextField();
     query.setColumns(30);
+    query.setMinimumSize(new Dimension(100, 34));
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 1;
+    gbc.weightx = 1.0;
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     searchPanel.add(query, gbc);
-    final JPanel spacer19 = new JPanel();
+    final JPanel spacer21 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 3;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer19, gbc);
+    searchPanel.add(spacer21, gbc);
     searchButton = new JButton();
     searchButton.setText("Search");
     gbc = new GridBagConstraints();
@@ -804,18 +961,18 @@ public class TopFrame extends JFrame {
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     searchPanel.add(searchButton, gbc);
-    final JPanel spacer20 = new JPanel();
+    final JPanel spacer22 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer20, gbc);
-    final JPanel spacer21 = new JPanel();
+    searchPanel.add(spacer22, gbc);
+    final JPanel spacer23 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 5;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer21, gbc);
+    searchPanel.add(spacer23, gbc);
     final JPanel panel5 = new JPanel();
     panel5.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -829,9 +986,9 @@ public class TopFrame extends JFrame {
     gbc.insets = new Insets(5, 0, 0, 0);
     searchPanel.add(panel5, gbc);
     panel5.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), " Search Results", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-    editorPane1 = new JEditorPane();
-    editorPane1.setContentType("text/html");
-    editorPane1.setEditable(false);
+    searchResults = new JEditorPane();
+    searchResults.setContentType("text/html");
+    searchResults.setEditable(false);
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
@@ -839,20 +996,20 @@ public class TopFrame extends JFrame {
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.BOTH;
     gbc.insets = new Insets(5, 0, 0, 0);
-    panel5.add(editorPane1, gbc);
-    final JPanel spacer22 = new JPanel();
+    panel5.add(searchResults, gbc);
+    final JPanel spacer24 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 3;
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer22, gbc);
-    final JPanel spacer23 = new JPanel();
+    searchPanel.add(spacer24, gbc);
+    final JPanel spacer25 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer23, gbc);
+    searchPanel.add(spacer25, gbc);
     label1.setLabelFor(treeScroll);
   }
 

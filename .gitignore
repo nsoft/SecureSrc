@@ -42,3 +42,5 @@ bin/
 .DS_Store
 /gradle.properties
 /.idea/
+/src/main/java/org/
+/src/main/resources/META-INF/
