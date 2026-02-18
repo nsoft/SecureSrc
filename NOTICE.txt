@@ -1,0 +1,7 @@
+This program utilizes code from a subset of Apache Lucene. The code is not distributed,
+but will be acquired when building the software. It is used in unmodified and
+can be identified by the org.apache.lucene packages. The exact subset can be understood
+by the reading getLucene.sh script. This code is Copyrighted by the Apache Software Foundation
+and used under the terms of the Apache Software License 2.0.
+
+The ASL 2.0 can be found at https://www.apache.org/licenses/LICENSE-2.0

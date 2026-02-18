@@ -26,6 +26,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 
+/**
+ * A class providing basic in-memory search with Apache Lucene. This class strongly favors
+ * simplicity over performance because the size of the dataset involved is absolutely
+ * miniscule by Lucene standards. Lucene is built to handle millions of docs
+ * with millisecond searches, and index docs at thousands per second. The case where
+ * a user has over a thousand login records will be very rare. So searchers are
+ * not cached, the index is rebuilt at the drop of a hat, etc. We will optimize later
+ * (if it is ever needed!). In other words, don't use this as an example for large
+ * applications!
+ */
 public class LuceneSearch {
 
   Directory index;
@@ -107,22 +117,25 @@ public class LuceneSearch {
     }
   }
 
-  public List<Document> search(String queryStr) throws IOException, ParseException {
+  public SearchResult search(String queryStr, int hits, int offset) throws IOException, ParseException {
     try (IndexReader reader = DirectoryReader.open(index)) {
       IndexSearcher searcher = new IndexSearcher(reader);
       Analyzer analyzer = new StandardAnalyzer();
       QueryParser parser = new QueryParser("text", analyzer);
       Query query = parser.parse(queryStr);
       System.out.println(query);
-      TopDocs topDocs = searcher.search(query, 10);
+
+      TopDocs topDocs = searcher.search(query, hits+offset);
       try {
-        return Arrays.stream(topDocs.scoreDocs).map(sd -> {
+        List<Document> list = Arrays.stream(topDocs.scoreDocs).skip(offset).map(sd -> {
           try {
             return reader.storedFields().document(sd.doc);
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
         }).toList();
+        SearchResult result = new SearchResult(list,topDocs.totalHits.value());
+        return result;
       } catch (RuntimeException r) {
         if (r.getCause() instanceof IOException) {
           throw (IOException) r.getCause();

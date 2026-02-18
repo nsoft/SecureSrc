@@ -1,6 +1,9 @@
+Necessary
  - UI and indexing for remaining attributes of Login
- - drag and drop logins between applications
- - search pagination
- - save file location preference (incl. dialog, file chooser etc)
- - format timestamp for created time tooltips
+ - serialversionuid for classes
+
+QOL
+ - copy button for identity, secret, etc.
  - italics for inactive logins when showing history
+ - drag and drop logins between applications
+ - format timestamp for created time tooltips

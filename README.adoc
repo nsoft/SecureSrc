@@ -31,8 +31,10 @@ Technically, you don't even have to trust their binary distribution and can comp
 Before you do however, please note that in doing so you place absolute faith in a MYRIAD of native libraries currently installed on your machine.
 JDK vendors are multi-million or multi-billion dollar corporations, and there is a fair chance that they will secure their build environment better than you will.
 If you are a professional security researcher that might not be true, in which case, have at it!
-2. You will be asked to trust the good folks at Lucene. This is the library that is the underpinning of the vast majority of search experiences on commercial websites (like Home Depot, Walmart, Apple, Amazon, etc.)
-the lucene code used in this project has NO dependencies on third parties, so everything it involves is open source and trusted by the largest companies in the world. Because of it's lack of dependencies we can compile it directly from source and there is no need to trust binary distributions.
+2. You will be asked to trust the good folks at Lucene (Disclaimer: I'm one of them).
+This is the library that is the underpinning of the vast majority of search experiences on commercial websites (like Home Depot, Walmart, Apple, Amazon, etc.).
+The lucene code used in this project has NO dependencies on third parties, so everything involved is open source and trusted by the largest companies in the world.
+Because of it's lack of dependencies we can compile it directly from source and there is no need to trust binary distributions.
 3. You will be asked to trust that we have correctly used the security routines supplied by Java. THIS IS NOT trivial and we recognize it.
 That is absolutely why the code for this program is Open Source.
 If you have technical chops or know someone who does, we very much want you to have them evaluate what we have done here.

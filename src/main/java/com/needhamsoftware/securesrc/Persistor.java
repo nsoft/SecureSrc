@@ -66,23 +66,21 @@ public class Persistor {
   public static final int VERSION = 1;
 
   private final Cipher cipher;
-  private final File location;
 
   /**
    * Create a new Persistor for the specified cipher.
    *
-   * @param location the location to which our save file will be written
    * @param cipherSpec the text specification of our encryption algorithm, see
    *                   <a href="https://docs.oracle.com/en/java/javase/22/docs/api/java.base/javax/crypto/Cipher.html">
    *                     Cipher class javadoc for details</a>
    * @throws EncryptionException if we can't load the specified Cipher, with a user-friendly message.
    */
-  public Persistor(File location, String cipherSpec) throws EncryptionException {
-    this.location = location;
+  public Persistor(String cipherSpec) throws EncryptionException {
+
     this.cipher = Encryption.loadCipher(cipherSpec);
   }
 
-  public void write(List<Context> contextList, KeyWithSalt masterPassword) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
+  public void write(List<Context> contextList, KeyWithSalt masterPassword, File location1) throws IOException, InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
     // important! do all encryption before touching the file to minimize the chance we 
     // fail half-way through writing the file
     Cipher temp; // Build a new one so that we never loose track of the original settings or have race conditions.
@@ -92,8 +90,8 @@ public class Persistor {
     byte[] cipherSpecBytes = cipherspec.getBytes(StandardCharsets.UTF_8);
     byte[] ivData = temp.getIV();
     // now we start touching the disk.
-    makeBackups();
-    saveData(cipherSpecBytes, encryptedArray, masterPassword.salt(), ivData);
+    makeBackups(location1);
+    saveData(cipherSpecBytes, encryptedArray, masterPassword.salt(), ivData, location1);
   }
 
   /**
@@ -101,6 +99,7 @@ public class Persistor {
    *
    * @param p a producer callback likely asking the user for their password.
    *
+   * @param location1
    * @return A list of contexts loaded from encrypted storage.
    * @throws NoSuchPaddingException if the padding in cipher spec is invalid
    * @throws InvalidKeySpecException if the cipher spec is invalid
@@ -108,9 +107,9 @@ public class Persistor {
    * @throws InvalidKeyException if the key supplied is invalid
    * @throws IOException if any of the stream IO operations fail.
    */
-  public List<Context> readEncryptedStorage(Function<byte[],KeyWithSalt> p) throws NoSuchPaddingException, InvalidKeySpecException, NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException {
+  public List<Context> readEncryptedStorage(Function<byte[],KeyWithSalt> p, File location1) throws NoSuchPaddingException, InvalidKeySpecException, NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException {
 
-    var dis = new DataInputStream(new FileInputStream(location));
+    var dis = new DataInputStream(new FileInputStream(location1));
     int version = dis.readInt();
     if (VERSION != version) {
       // there has only been one version, but in case an old copy is someday invoked on something newer...
@@ -136,8 +135,8 @@ public class Persistor {
   }
 
 
-  private void saveData(byte[] cipherSpecBytes, byte[] encryptedData, byte[] masterPwSalt, byte[] ivData) throws IOException {
-    try (var dos = new DataOutputStream(new FileOutputStream(location))) {
+  private void saveData(byte[] cipherSpecBytes, byte[] encryptedData, byte[] masterPwSalt, byte[] ivData, File location1) throws IOException {
+    try (var dos = new DataOutputStream(new FileOutputStream(location1))) {
       dos.writeInt(VERSION);
       dos.writeInt(cipherSpecBytes.length);
       dos.writeInt(masterPwSalt.length);
@@ -156,9 +155,10 @@ public class Persistor {
    * crashes during file output, etc.
    *
    * @throws IOException if we can't read or write one of the files.
+   * @param location1
    */
-  private void makeBackups() throws IOException {
-    String canonicalPath = location.getCanonicalPath();
+  private void makeBackups(File location1) throws IOException {
+    String canonicalPath = location1.getCanonicalPath();
 
     // intentionally simplistic to avoid any off by one or other silly errors
     // This is our guard against bitrot and corruption.
@@ -196,8 +196,8 @@ public class Persistor {
     if (backup1.exists()) {
       Files.copy(backup1.toPath(), backup2.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
     }
-    if (location.exists()) {
-      Files.copy(location.toPath(), backup1.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
+    if (location1.exists()) {
+      Files.copy(location1.toPath(), backup1.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
     }
   }
 }

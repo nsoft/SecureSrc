@@ -11,7 +11,6 @@ import java.awt.HeadlessException;
 import java.awt.Insets;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.awt.event.FocusListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -27,6 +26,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.prefs.Preferences;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
@@ -35,6 +35,7 @@ import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -71,6 +72,7 @@ import com.needhamsoftware.securesrc.model.Context;
 import com.needhamsoftware.securesrc.model.Login;
 import com.needhamsoftware.securesrc.model.NamedObject;
 import com.needhamsoftware.securesrc.search.LuceneSearch;
+import com.needhamsoftware.securesrc.search.SearchResult;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.queryparser.classic.ParseException;
 
@@ -90,7 +92,8 @@ public class TopFrame extends JFrame {
     }
   }
 
-  private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME_DIR, "ssim.dat");
+  public static final String SAVE_FILE_NAME = "ssim.dat";
+  private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME_DIR, SAVE_FILE_NAME);
   private final LuceneSearch searcher;
   private File location = DEFAULT_SAVE_LOCATION;
 
@@ -120,12 +123,20 @@ public class TopFrame extends JFrame {
   private JButton updateContextButton;
   private JButton addNewApplicationButton;
   private JButton updateApplicationButton;
+  private JButton nextButton;
+  private JButton previousButton;
+  private JPanel searchInfo;
+  private JLabel hitCountLabel;
+  private JLabel hitCount;
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
   private JMenuBar menubar;
   private JMenu viewMenu;
   private JCheckBoxMenuItem viewHistoryMenuItem;
+  private JMenuItem saveFileLocation;
+
+  private JFileChooser fileChooser;
 
   List<Context> contextList = new ArrayList<>();
   Login current;
@@ -139,15 +150,23 @@ public class TopFrame extends JFrame {
   Persistor persistor;
   KeyWithSalt masterPassword;
   private boolean showHistory;
+  Pager pager = new Pager();
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
+    // todo preferences api for file location.
+    Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
+    String saveLocation = prefs.get("save_location", null);
+    if (saveLocation != null) {
+      location = new File(saveLocation);
+    }
+
     String property = System.getProperty(CIPHER_PROP);
     if (property != null && !property.isEmpty()) {
       outputCipher = property;
     }
     try {
-      persistor = new Persistor(location, outputCipher);
+      persistor = new Persistor(outputCipher);
     } catch (EncryptionException e) {
       JOptionPane.showMessageDialog(this, e.getMessage() + " You can try an alternative Cipher by passing in -D" + CIPHER_PROP + "='<cipher>' argument. The program will now shut down safely.");
       throw new RuntimeException(e);
@@ -162,7 +181,7 @@ public class TopFrame extends JFrame {
           }
           masterPassword = keyWithSalt;
           return masterPassword;
-        });
+        }, location);
       } catch (NoSuchPaddingException | InvalidKeySpecException | NoSuchAlgorithmException | InvalidKeyException |
                ClassNotFoundException | InvalidAlgorithmParameterException e) {
         // fatal - just die
@@ -171,11 +190,16 @@ public class TopFrame extends JFrame {
       } catch (IOException e) {
         // Message and Die (jvm restart and message dialog vastly slows down UI script driven brute-forcing)
         if (e.getCause() instanceof AEADBadTagException) {
-          JOptionPane.showMessageDialog(this,"Password does not match!");
+          JOptionPane.showMessageDialog(this, "Password does not match!");
         }
         System.exit(1);
       }
+    } else {
+      if (!DEFAULT_SAVE_LOCATION.getAbsolutePath().equals(location.getAbsolutePath())) {
+        JOptionPane.showMessageDialog(this, location + " does not appear to exist. If you create new entries a new file will be created in this location.");
+      }
     }
+    this.fileChooser = new JFileChooser(location);
     $$$setupUI$$$();
     Border border = BorderFactory.createLineBorder(Color.GRAY);
     loginDescription.setBorder(border);
@@ -193,6 +217,8 @@ public class TopFrame extends JFrame {
     updateApplicationButton.addActionListener(e -> updateApplication());
     addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields()));
     updateLoginButton.addActionListener(e -> updateLogin());
+    nextButton.addActionListener(e -> next());
+    previousButton.addActionListener(e -> previous());
     treeContextMenu.add(newContextPopupItem);
     treeContextMenu.add(newApplicationPopupItem);
     treeContextMenu.setVisible(false);
@@ -277,8 +303,9 @@ public class TopFrame extends JFrame {
 
   private void menuBar() {
     this.menubar = new JMenuBar();
-    this.viewMenu = new JMenu("View");
+    this.viewMenu = new JMenu("Preferences");
     this.viewHistoryMenuItem = new JCheckBoxMenuItem("View History");
+    this.saveFileLocation = new JMenuItem("Save File Location...");
     this.viewHistoryMenuItem.addActionListener(e -> {
       showHistory = viewHistoryMenuItem.isSelected();
       buildTree();
@@ -286,35 +313,84 @@ public class TopFrame extends JFrame {
         search();
       }
     });
+    saveFileLocation.addActionListener(e -> {
+      fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+
+      int result = fileChooser.showOpenDialog(TopFrame.this);
+      if (result == JFileChooser.APPROVE_OPTION) {
+        try {
+          location = new File(fileChooser.getSelectedFile().getCanonicalPath(), SAVE_FILE_NAME);
+          Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
+          prefs.put("save_location", location.getAbsolutePath());
+        } catch (IOException ex) {
+          JOptionPane.showMessageDialog(TopFrame.this, "Unable to resolve location:" + ex.getMessage());
+        }
+      }
+      if (location.exists()) {
+
+      }
+    });
     this.viewMenu.add(viewHistoryMenuItem);
+    this.viewMenu.add(saveFileLocation);
     this.menubar.add(viewMenu);
     this.setJMenuBar(menubar);
   }
 
   private void search() {
     try {
-      List<Document> search = searcher.search(query.getText());
-      // build html for our JEditorPane to display
-      StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
-      for (Document document : search) {
-        html.append("<li><a href=\"http://");
-        html.append(escapeHtml(document.get("id")));
-        html.append("\"><strong>");
-        html.append(escapeHtml(document.get("name")));
-        html.append("</strong></a><br/>");
-        html.append("<em>");
-        html.append(escapeHtml(document.get("breadcrumb")));
-        html.append("</em><br/>");
-        html.append(escapeHtml(document.get("description")));
-        html.append("<hr/></li>");
-      }
-      html.append("</body></html>");
-      searchResults.setText(html.toString());
+      SearchResult result = pager.firstPage(i -> searcher.search(query.getText(), pager.getPageSize(), i));
+      renderSearchResults(result);
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     } catch (ParseException ex) {
       JOptionPane.showMessageDialog(this, ex.getMessage());
     }
+  }
+
+  private void next() {
+    try {
+      SearchResult result = pager.nextPage(i -> searcher.search(query.getText(), pager.getPageSize(), i));
+
+      renderSearchResults(result);
+    } catch (IOException ex) {
+      throw new RuntimeException(ex);
+    } catch (ParseException ex) {
+      JOptionPane.showMessageDialog(this, ex.getMessage());
+    }
+  }
+
+  private void previous() {
+    try {
+      SearchResult result = pager.prevPage(i -> searcher.search(query.getText(), pager.getPageSize(), i));
+      renderSearchResults(result);
+    } catch (IOException ex) {
+      throw new RuntimeException(ex);
+    } catch (ParseException ex) {
+      JOptionPane.showMessageDialog(this, ex.getMessage());
+    }
+  }
+
+  private void renderSearchResults(SearchResult result) {
+    nextButton.setEnabled(result.totalHits > pager.getPageSize());
+    previousButton.setEnabled(pager.getCurrentPage() > 1);
+    hitCount.setText(String.valueOf(result.totalHits));
+    List<Document> search = result.resultPage;
+    // build html for our JEditorPane to display
+    StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
+    for (Document document : search) {
+      html.append("<li><a href=\"http://");
+      html.append(escapeHtml(document.get("id")));
+      html.append("\"><strong>");
+      html.append(escapeHtml(document.get("name")));
+      html.append("</strong></a><br/>");
+      html.append("<em>");
+      html.append(escapeHtml(document.get("breadcrumb")));
+      html.append("</em><br/>");
+      html.append(escapeHtml(document.get("description")));
+      html.append("<hr/></li>");
+    }
+    html.append("</body></html>");
+    searchResults.setText(html.toString());
   }
 
   private void updateContext() {
@@ -373,7 +449,7 @@ public class TopFrame extends JFrame {
 
   private void persist() {
     try {
-      persistor.write(contextList, masterPassword);
+      persistor.write(contextList, masterPassword, location);
       syncState();
       buildTree();
     } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
@@ -452,7 +528,7 @@ public class TopFrame extends JFrame {
   }
 
   private static int popUpPasswordDialog(JPasswordField pf) {
-    JOptionPane jOptionPane = new JOptionPane(pf,JOptionPane.PLAIN_MESSAGE,JOptionPane.OK_CANCEL_OPTION) {
+    JOptionPane jOptionPane = new JOptionPane(pf, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION) {
       @Override
       public void selectInitialValue() {
         pf.requestFocusInWindow();
@@ -589,7 +665,7 @@ public class TopFrame extends JFrame {
           selected = applicationChild;
           selectedIsShown = true;
         }
-        List<Login> logins = showHistory ?  application.getLogins() : application.getActiveLogins();
+        List<Login> logins = showHistory ? application.getLogins() : application.getActiveLogins();
         for (Login login : logins) {
           DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
           model.insertNodeInto(loginChild, applicationChild, applicationChild.getChildCount());
@@ -669,6 +745,7 @@ public class TopFrame extends JFrame {
     splitPane1.setLeftComponent(splitPane2);
     final JPanel panel1 = new JPanel();
     panel1.setLayout(new BorderLayout(0, 0));
+    panel1.setMinimumSize(new Dimension(50, 15));
     splitPane2.setLeftComponent(panel1);
     treeScroll = new JScrollPane();
     treeScroll.setPreferredSize(new Dimension(200, 500));
@@ -1062,9 +1139,56 @@ public class TopFrame extends JFrame {
     gbc.insets = new Insets(5, 0, 0, 0);
     searchPanel.add(panel5, gbc);
     panel5.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), " Search Results", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-    searchResults = new JEditorPane();
-    searchResults.setContentType("text/html");
-    searchResults.setEditable(false);
+    searchInfo = new JPanel();
+    searchInfo.setLayout(new GridBagLayout());
+    gbc = new GridBagConstraints();
+    gbc.gridx = 0;
+    gbc.gridy = 3;
+    gbc.gridwidth = 5;
+    gbc.fill = GridBagConstraints.BOTH;
+    panel5.add(searchInfo, gbc);
+    nextButton = new JButton();
+    nextButton.setText("Next");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 4;
+    gbc.gridy = 0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    searchInfo.add(nextButton, gbc);
+    final JPanel spacer24 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 4;
+    gbc.gridy = 1;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    searchInfo.add(spacer24, gbc);
+    previousButton = new JButton();
+    previousButton.setText("Previous");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 3;
+    gbc.gridy = 0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    searchInfo.add(previousButton, gbc);
+    hitCount = new JLabel();
+    hitCount.setText("0");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 0;
+    gbc.anchor = GridBagConstraints.WEST;
+    searchInfo.add(hitCount, gbc);
+    final JPanel spacer25 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 2;
+    gbc.gridy = 0;
+    gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    searchInfo.add(spacer25, gbc);
+    hitCountLabel = new JLabel();
+    hitCountLabel.setText("Found:");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 0;
+    gbc.gridy = 0;
+    gbc.anchor = GridBagConstraints.WEST;
+    searchInfo.add(hitCountLabel, gbc);
+    final JScrollPane scrollPane1 = new JScrollPane();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
@@ -1072,20 +1196,24 @@ public class TopFrame extends JFrame {
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.BOTH;
     gbc.insets = new Insets(5, 0, 0, 0);
-    panel5.add(searchResults, gbc);
-    final JPanel spacer24 = new JPanel();
+    panel5.add(scrollPane1, gbc);
+    searchResults = new JEditorPane();
+    searchResults.setContentType("text/html");
+    searchResults.setEditable(false);
+    scrollPane1.setViewportView(searchResults);
+    final JPanel spacer26 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 3;
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer24, gbc);
-    final JPanel spacer25 = new JPanel();
+    searchPanel.add(spacer26, gbc);
+    final JPanel spacer27 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer25, gbc);
+    searchPanel.add(spacer27, gbc);
     label1.setLabelFor(treeScroll);
   }
 
