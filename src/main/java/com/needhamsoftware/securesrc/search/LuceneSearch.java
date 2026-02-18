@@ -72,9 +72,20 @@ public class LuceneSearch {
         })
         .collect(Collectors.joining("/"));
 
+    String breadCrumb = path.stream()
+        .map(n -> {
+          if (n.getUserObject() instanceof String) {
+            return n.getUserObject().toString();
+          } else {
+            return ((NamedObject) n.getUserObject()).getName();
+          }
+        })
+        .collect(Collectors.joining(" > "));
+
     StringBuilder text = new StringBuilder();
     text.append(pathStr).append(" ");
     doc.add(new StringField("path", pathStr, Field.Store.YES));
+    doc.add(new StringField("breadcrumb", breadCrumb, Field.Store.YES));
 
     Object obj = root.getUserObject();
     if (obj instanceof NamedObject userObject) {

@@ -9,8 +9,9 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -49,11 +50,10 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.text.StyleContext;
@@ -253,9 +253,19 @@ public class TopFrame extends JFrame {
         contextTree.setSelectionPath(new TreePath(inTree.getPath()));
       }
     });
+    searchResults.addFocusListener(new FocusAdapter() {
+      @Override
+      public void focusGained(FocusEvent e) {
+        searchResults.getCaret().setVisible(false);
+      }
+    });
     HTMLEditorKit editorKit = (HTMLEditorKit) searchResults.getEditorKit();
     editorKit.getStyleSheet().addRule("li {list-style-type:none;padding:0px;margin:10px;margin-bottom:0px}");
     editorKit.getStyleSheet().addRule("ul {padding:0px;margin:10px;}");
+    Font font = UIManager.getFont("Label.font");
+    editorKit.getStyleSheet().addRule("body { font-family: " + font.getFamily() + "; " +
+        "font-size: " + font.getSize() + "pt; }");
+    editorKit.getStyleSheet().addRule("em {color:#6666ff}");
     topPanel.setVisible(true);
     menuBar();
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -292,6 +302,9 @@ public class TopFrame extends JFrame {
         html.append("\"><strong>");
         html.append(escapeHtml(document.get("name")));
         html.append("</strong></a><br/>");
+        html.append("<em>");
+        html.append(escapeHtml(document.get("breadcrumb")));
+        html.append("</em><br/>");
         html.append(escapeHtml(document.get("description")));
         html.append("<hr/></li>");
       }
