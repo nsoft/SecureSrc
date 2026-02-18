@@ -9,10 +9,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -31,10 +27,13 @@ import java.util.function.Consumer;
 import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -50,9 +49,7 @@ import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
-import javax.swing.text.EditorKit;
 import javax.swing.text.StyleContext;
-import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -86,7 +83,7 @@ public class TopFrame extends JFrame {
     }
   }
 
-  private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME, "ssim.dat");
+  private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME_DIR, "ssim.dat");
   private final LuceneSearch searcher;
   private File location = DEFAULT_SAVE_LOCATION;
 
@@ -119,6 +116,10 @@ public class TopFrame extends JFrame {
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
+  private JMenuBar menubar;
+  private JMenu viewMenu;
+  private JCheckBoxMenuItem viewHistoryMenuItem;
+
   List<Context> contextList = new ArrayList<>();
   Login current;
   DefaultMutableTreeNode selected;
@@ -130,7 +131,7 @@ public class TopFrame extends JFrame {
   private String outputCipher = DEFAULT_CIPHER_SPEC;
   Persistor persistor;
   KeyWithSalt masterPassword;
-
+  private boolean showHistory;
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
@@ -243,11 +244,28 @@ public class TopFrame extends JFrame {
     editorKit.getStyleSheet().addRule("li {list-style-type:none;padding:0px;margin:10px;margin-bottom:0px}");
     editorKit.getStyleSheet().addRule("ul {padding:0px;margin:10px;}");
     topPanel.setVisible(true);
+    menuBar();
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     this.add($$$getRootComponent$$$());
     syncState();
-    buildTree(true);
+    buildTree();
     query.addActionListener(e -> search());
+  }
+
+  private void menuBar() {
+    this.menubar = new JMenuBar();
+    this.viewMenu = new JMenu("View");
+    this.viewHistoryMenuItem = new JCheckBoxMenuItem("View History");
+    this.viewHistoryMenuItem.addActionListener(e -> {
+      showHistory = viewHistoryMenuItem.isSelected();
+      buildTree();
+      if (query.getText() != null && !query.getText().isEmpty()) {
+        search();
+      }
+    });
+    this.viewMenu.add(viewHistoryMenuItem);
+    this.menubar.add(viewMenu);
+    this.setJMenuBar(menubar);
   }
 
   private void search() {
@@ -331,7 +349,7 @@ public class TopFrame extends JFrame {
     try {
       persistor.write(contextList, masterPassword);
       syncState();
-      buildTree(true);
+      buildTree();
     } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
              InvalidKeyException | InvalidAlgorithmParameterException ex) {
       JOptionPane.showMessageDialog(this, "Unable to save data using " + outputCipher + "\n" +
@@ -460,7 +478,7 @@ public class TopFrame extends JFrame {
     Context userObject = (Context) selected.getUserObject();
     addApplicationDialog.setApplications(userObject.getApplications());
     addApplicationDialog.setVisible(true);
-    SwingUtilities.invokeLater(() -> buildTree(true));
+    SwingUtilities.invokeLater(() -> buildTree());
   }
 
   private void addContext() {
@@ -469,7 +487,7 @@ public class TopFrame extends JFrame {
     }
     addContextDialog.setContexts(contextList);
     addContextDialog.setVisible(true);
-    SwingUtilities.invokeLater(() -> buildTree(true));
+    SwingUtilities.invokeLater(() -> buildTree());
   }
 
   private void contextToggle(MouseEvent e) {
@@ -493,16 +511,15 @@ public class TopFrame extends JFrame {
   /**
    * Rebuild the tree maintaining selection and expansion state if possible
    *
-   * @param activeOnly if false, show inactive (updated) logins
    * @return the root node.
    */
-  private DefaultMutableTreeNode buildTree(boolean activeOnly) {
+  private DefaultMutableTreeNode buildTree() {
     if (root == null) {
       root = new DefaultMutableTreeNode("Contexts");
       return root;
     }
     List<Object> expanded = new ArrayList<>();
-    DefaultTreeModel model = null;
+    DefaultTreeModel model;
     Enumeration<TreePath> expandedDescendants = contextTree.getExpandedDescendants(new TreePath(root.getPath()));
     while (expandedDescendants != null && expandedDescendants.hasMoreElements()) {
       TreePath treePath = expandedDescendants.nextElement();
@@ -528,7 +545,7 @@ public class TopFrame extends JFrame {
           selected = applicationChild;
           selectedIsShown = true;
         }
-        List<Login> logins = activeOnly ? application.getActiveLogins() : application.getLogins();
+        List<Login> logins = showHistory ?  application.getLogins() : application.getActiveLogins();
         for (Login login : logins) {
           DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
           model.insertNodeInto(loginChild, applicationChild, applicationChild.getChildCount());
@@ -1058,7 +1075,7 @@ public class TopFrame extends JFrame {
   }
 
   private void createUIComponents() {
-    contextTree = new JTree(buildTree(true));
+    contextTree = new JTree(buildTree());
     // TODO: place custom component creation code here
   }
 }

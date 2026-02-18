@@ -1,7 +1,8 @@
  - Focus password field in initial popup
- - hide/show history
  - UI for remaining attributes of Login
  - breadcrumb for search results
  - drag and drop logins between applications
  - search pagination
  - save file location preference (incl. dialog, file chooser etc)
+ - format timestamp for created time tooltips
+ - italics for inactive logins when showing history
