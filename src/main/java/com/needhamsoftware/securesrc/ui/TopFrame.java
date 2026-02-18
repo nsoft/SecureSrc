@@ -9,6 +9,10 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -221,26 +225,7 @@ public class TopFrame extends JFrame {
     this.searcher = new LuceneSearch();
 
     searchButton.addActionListener(e -> {
-      try {
-        List<Document> search = searcher.search(query.getText());
-        // build html for our JEditorPane to display
-        StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
-        for (Document document : search) {
-          html.append("<li><a href=\"http://");
-          html.append(escapeHtml(document.get("id")));
-          html.append("\"><strong>");
-          html.append(escapeHtml(document.get("name")));
-          html.append("</strong></a><br/>");
-          html.append(escapeHtml(document.get("description")));
-          html.append("<hr/></li>");
-        }
-        html.append("</body></html>");
-        searchResults.setText(html.toString());
-      } catch (IOException ex) {
-        throw new RuntimeException(ex);
-      } catch (ParseException ex) {
-        JOptionPane.showMessageDialog(this, ex.getMessage());
-      }
+      search();
     });
     searchResults.addHyperlinkListener(e -> {
       HyperlinkEvent.EventType eventType = e.getEventType();
@@ -256,6 +241,30 @@ public class TopFrame extends JFrame {
     this.add($$$getRootComponent$$$());
     syncState();
     buildTree(true);
+    query.addActionListener(e -> search());
+  }
+
+  private void search() {
+    try {
+      List<Document> search = searcher.search(query.getText());
+      // build html for our JEditorPane to display
+      StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
+      for (Document document : search) {
+        html.append("<li><a href=\"http://");
+        html.append(escapeHtml(document.get("id")));
+        html.append("\"><strong>");
+        html.append(escapeHtml(document.get("name")));
+        html.append("</strong></a><br/>");
+        html.append(escapeHtml(document.get("description")));
+        html.append("<hr/></li>");
+      }
+      html.append("</body></html>");
+      searchResults.setText(html.toString());
+    } catch (IOException ex) {
+      throw new RuntimeException(ex);
+    } catch (ParseException ex) {
+      JOptionPane.showMessageDialog(this, ex.getMessage());
+    }
   }
 
   private void updateContext() {

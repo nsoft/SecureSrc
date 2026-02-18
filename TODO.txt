@@ -1,5 +1,4 @@
  - Focus password field in initial popup
- - return key to activate search
  - Styling of results (https://stackoverflow.com/questions/37851584/modifying-previously-set-css-style-of-jeditorpane)
  - hide/show history
  - UI for remaining attributes of Login

@@ -88,22 +88,42 @@ We will never distribute binary code. This would involve trusting the platform h
 
 === Building
 
-We do not build this for you and you should not trust us to do so. Step 1 is to build the software from source code
+We do not build this for you and you should not trust us to do so.
+Currently, this requires Linux or MacOsX. `.bat` file contributions are welcome, although if you are security conscious you really shouldn't be using windows in the first place. Windows is for games and big companies that don't know any better.
 
-=== Recommended Way
 
-. Download sourcecode from github releases (Comming Soon)
+==== Recommended Way
+
+. Download sourcecode from GitHub releases (Coming Soon)
+. ensure git is https://git-scm.com/book/en/v2/Getting-Started-Installing-Git[installed]
 . Unpack the zipfile and enter the resulting directory (folder)
-.
+. run the getLucene.sh script*
+. run the buildJar.sh script (Coming soon)
+. copy /build/libs/securesrc-1.0.jar to a convenient location
 
-=== Lazy, Less secure Way
+(*) This is the only step where my code requires internet access, and the only access required is https access to Apache/lucene on GitHub.
+
+==== Lazy, Less secure Way
 
 These instructions are more for Java programmer types who are willing to trust standard build tools. Follow the Recommended approach if you don't know what some of this means.
 
 . Download and isntall a JDK you choose to trust (NOT a JRE, a JDK!)
 . Check out the source from gitHub
 . run `./gradlew build`
-. in the /build/libs directory, you can now run java -jar
+. in the /build/libs directory, you can now find a versioned jar file.
+
+=== Running
+
+On many systems you need only double-click the jar file. On modern Macs you may need to grant permission to run it using the `Settings > Security & Privacy` tab to run it the first time. Apple does a good job of making sure you really trust the code you just built :).
+If that doesn't work open a terminal to the directory where you placed the jar and run:
+
+[source,bash]
+----
+java -jar securesrc-1.0.jar
+----
+
+There are likely a variety of OS/distribution specific ways to run this from a shortcut or application, but I don't doo operating system tech support. This exercise is left for the reader.
+
 
 
 
