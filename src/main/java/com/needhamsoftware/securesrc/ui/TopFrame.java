@@ -9,6 +9,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -24,11 +26,13 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import javax.crypto.AEADBadTagException;
 import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -45,8 +49,11 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
+import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.text.StyleContext;
@@ -157,9 +164,15 @@ public class TopFrame extends JFrame {
           return masterPassword;
         });
       } catch (NoSuchPaddingException | InvalidKeySpecException | NoSuchAlgorithmException | InvalidKeyException |
-               IOException | ClassNotFoundException | InvalidAlgorithmParameterException e) {
+               ClassNotFoundException | InvalidAlgorithmParameterException e) {
         // fatal - just die
         e.printStackTrace();
+        System.exit(1);
+      } catch (IOException e) {
+        // Message and Die (jvm restart and message dialog vastly slows down UI script driven brute-forcing)
+        if (e.getCause() instanceof AEADBadTagException) {
+          JOptionPane.showMessageDialog(this,"Password does not match!");
+        }
         System.exit(1);
       }
     }
@@ -411,8 +424,7 @@ public class TopFrame extends JFrame {
 
   private KeyWithSalt askPassword(byte[] salt) {
     JPasswordField pf = new JPasswordField();
-
-    int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+    int okCxl = popUpPasswordDialog(pf);
     char[] password = pf.getPassword();
     if (okCxl == JOptionPane.OK_OPTION) {
       try {
@@ -424,6 +436,25 @@ public class TopFrame extends JFrame {
       }
     }
     return null;
+  }
+
+  private static int popUpPasswordDialog(JPasswordField pf) {
+    JOptionPane jOptionPane = new JOptionPane(pf,JOptionPane.PLAIN_MESSAGE,JOptionPane.OK_CANCEL_OPTION) {
+      @Override
+      public void selectInitialValue() {
+        pf.requestFocusInWindow();
+      }
+    };
+    JDialog dialog = jOptionPane.createDialog("Enter Password");
+    dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+    dialog.setVisible(true);
+    Object value = jOptionPane.getValue();
+    dialog.dispose();
+    if (value == null) {
+      value = JOptionPane.CLOSED_OPTION;
+    }
+    int okCxl = (Integer) value;
+    return okCxl;
   }
 
   private void clearApplicationPanel() {
