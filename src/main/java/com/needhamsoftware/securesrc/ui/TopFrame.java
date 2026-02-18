@@ -50,7 +50,10 @@ import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.text.EditorKit;
 import javax.swing.text.StyleContext;
+import javax.swing.text.html.HTML;
+import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
@@ -236,6 +239,9 @@ public class TopFrame extends JFrame {
         contextTree.setSelectionPath(new TreePath(inTree.getPath()));
       }
     });
+    HTMLEditorKit editorKit = (HTMLEditorKit) searchResults.getEditorKit();
+    editorKit.getStyleSheet().addRule("li {list-style-type:none;padding:0px;margin:10px;margin-bottom:0px}");
+    editorKit.getStyleSheet().addRule("ul {padding:0px;margin:10px;}");
     topPanel.setVisible(true);
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     this.add($$$getRootComponent$$$());
