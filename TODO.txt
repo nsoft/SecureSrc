@@ -1,9 +1,10 @@
 Necessary
- - UI and indexing for remaining attributes of Login
- - serialversionuid for classes
+ - nest historical logins under current version.
+ - script for user builds (non-gradle)
+ - show password and passwordfield for secrets
+ - copy to clipboard button for identity, secret, etc.
 
 QOL
- - copy button for identity, secret, etc.
- - italics for inactive logins when showing history
  - drag and drop logins between applications
  - format timestamp for created time tooltips
+ - open browser to loginUrl (with preferences and substitutions for browser command)

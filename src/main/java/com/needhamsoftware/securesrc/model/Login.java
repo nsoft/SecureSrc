@@ -1,21 +1,24 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serial;
 import java.io.Serializable;
-import java.net.URL;
 import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
+import java.util.LinkedHashMap;
+import com.needhamsoftware.securesrc.Persistor;
 
 public class Login extends NamedObject implements Serializable {
+
+  @Serial
+  private static final long serialVersionUID= Persistor.VERSION;
 
   private boolean active;
   private final String identity;
   private final String secret;
   private final String authApp;
   private final String pin;
-  private final URL loginUrl;
+  private final String loginUrl;
   private final String browserProfile;
-  private final Map<String,String> securityChallenges;
+  private final LinkedHashMap<String,String> securityChallenges;
 
   public boolean isActive() {
     return active;
@@ -37,7 +40,7 @@ public class Login extends NamedObject implements Serializable {
     return pin;
   }
 
-  public URL getLoginUrl() {
+  public String getLoginUrl() {
     return loginUrl;
   }
 
@@ -45,11 +48,15 @@ public class Login extends NamedObject implements Serializable {
     return browserProfile;
   }
 
-  public Map<String, String> getSecurityChallenges() {
+  public LinkedHashMap<String, String> getSecurityChallenges() {
     return securityChallenges;
   }
 
-  public Login(boolean active, String name, String description, Instant createdDate, String identity, String secret, String authApp, String pin, URL loginUrl, String browserProfile, Map<String, String> securityChallenges) {
+  public Login(boolean active, String name, String description,
+               Instant createdDate, String identity, String secret,
+               String authApp, String pin, String loginUrl,
+               String browserProfile, LinkedHashMap<String,
+          String> securityChallenges) {
     super(name,description);
     this.active = active;
     this.createdDate = createdDate;

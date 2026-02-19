@@ -1,10 +1,16 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.UUID;
+import com.needhamsoftware.securesrc.Persistor;
 
 public class NamedObject implements Serializable {
+
+  @Serial
+  private static final long serialVersionUID= Persistor.VERSION;
+
   String name;
   String description;
   Instant createdDate;
@@ -38,9 +44,6 @@ public class NamedObject implements Serializable {
     return createdDate;
   }
 
-  public void setCreatedDate(Instant createdDate) {
-    this.createdDate = createdDate;
-  }
 
   public String getUuid() {
     return uuid;

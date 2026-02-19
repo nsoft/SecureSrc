@@ -1,14 +1,18 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.needhamsoftware.securesrc.Persistor;
 
 public class Application extends NamedObject implements Serializable, Comparable<Application> {
 
+  @Serial
+  private static final long serialVersionUID= Persistor.VERSION;
+
   List<Login> logins = new ArrayList<>();
-  List<Login> activeLogins = new ArrayList<>();
 
   public Application(String name, String description) {
     super(name, description);

@@ -1,10 +1,16 @@
 package com.needhamsoftware.securesrc.model;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import com.needhamsoftware.securesrc.Persistor;
 
 public class Context extends NamedObject implements Serializable, Comparable<Context> {
+
+  @Serial
+  private static final long serialVersionUID= Persistor.VERSION;
+
   List<Application> applications = new ArrayList<>();
 
   public Context(String name, String description) {

@@ -23,8 +23,10 @@ import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 import javax.crypto.AEADBadTagException;
@@ -47,6 +49,7 @@ import javax.swing.JPasswordField;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
@@ -57,6 +60,8 @@ import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import javax.swing.text.StyleContext;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -76,7 +81,7 @@ import com.needhamsoftware.securesrc.search.SearchResult;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.queryparser.classic.ParseException;
 
-@SuppressWarnings("CallToPrintStackTrace")
+@SuppressWarnings({"CallToPrintStackTrace", "FieldCanBeLocal"})
 public class TopFrame extends JFrame {
   private static final String DEFAULT_CIPHER_SPEC = "AES/GCM/NoPadding";
   private static final String USER_HOME = System.getProperty("user.home");
@@ -128,6 +133,12 @@ public class TopFrame extends JFrame {
   private JPanel searchInfo;
   private JLabel hitCountLabel;
   private JLabel hitCount;
+  private JPanel secQPanel;
+  private JTable sqTable;
+  private JTextField authApp;
+  private JTextField pin;
+  private JTextField loginUrl;
+  private JTextField browserProfile;
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
@@ -136,7 +147,7 @@ public class TopFrame extends JFrame {
   private JCheckBoxMenuItem viewHistoryMenuItem;
   private JMenuItem saveFileLocation;
 
-  private JFileChooser fileChooser;
+  private final JFileChooser fileChooser;
 
   List<Context> contextList = new ArrayList<>();
   Login current;
@@ -201,9 +212,9 @@ public class TopFrame extends JFrame {
     }
     this.fileChooser = new JFileChooser(location);
     $$$setupUI$$$();
+    sqTable.setModel(new DefaultTableModel(3, 2));
     Border border = BorderFactory.createLineBorder(Color.GRAY);
     loginDescription.setBorder(border);
-    syncState();
     selected = root;
     contextTree.setSelectionPath(new TreePath(root.getPath()));
     treeContextMenu = new JPopupMenu();
@@ -267,9 +278,7 @@ public class TopFrame extends JFrame {
 
     this.searcher = new LuceneSearch();
 
-    searchButton.addActionListener(e -> {
-      search();
-    });
+    searchButton.addActionListener(e -> search());
     searchResults.addHyperlinkListener(e -> {
       HyperlinkEvent.EventType eventType = e.getEventType();
       if (eventType.equals(HyperlinkEvent.EventType.ACTIVATED)) {
@@ -296,7 +305,6 @@ public class TopFrame extends JFrame {
     menuBar();
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     this.add($$$getRootComponent$$$());
-    syncState();
     buildTree();
     query.addActionListener(e -> search());
   }
@@ -325,9 +333,6 @@ public class TopFrame extends JFrame {
         } catch (IOException ex) {
           JOptionPane.showMessageDialog(TopFrame.this, "Unable to resolve location:" + ex.getMessage());
         }
-      }
-      if (location.exists()) {
-
       }
     });
     this.viewMenu.add(viewHistoryMenuItem);
@@ -394,17 +399,33 @@ public class TopFrame extends JFrame {
   }
 
   private void updateContext() {
-    Context userObject = (Context) selected.getUserObject();
-    userObject.setName(contextName.getText());
-    userObject.setDescription(contextDescription.getText());
+    Object userObject = selected.getUserObject();
+    if (userObject instanceof Login) {
+      selected = (DefaultMutableTreeNode) selected.getParent();
+    }
+    userObject = selected.getUserObject();
+    if (userObject instanceof Application) {
+      selected = (DefaultMutableTreeNode) selected.getParent();
+    }
+    Context contextObject = (Context) selected.getUserObject();
+    contextObject.setName(contextName.getText());
+    contextObject.setDescription(contextDescription.getText());
+    newContext = contextObject;
     persist();
+
   }
 
   private void updateApplication() {
-    Application userObject = (Application) selected.getUserObject();
-    userObject.setName(applicatioName.getText());
-    userObject.setDescription(applicationDescription.getText());
+    Object userObject = selected.getUserObject();
+    if (userObject instanceof Login) {
+      selected = (DefaultMutableTreeNode) selected.getParent();
+    }
+    Application applicationObject = (Application) selected.getUserObject();
+    applicationObject.setName(applicatioName.getText());
+    applicationObject.setDescription(applicationDescription.getText());
+    newApplication = applicationObject;
     persist();
+
   }
 
   private void updateLogin() {
@@ -418,15 +439,27 @@ public class TopFrame extends JFrame {
   private Login loginFromFormFields() {
     String name = loginName.getText();
     String description = loginDescription.getText();
-    String identity = TopFrame.this.identity.getText();
-    String secret = TopFrame.this.secret.getText();
+    String identity = this.identity.getText();
+    String secret = this.secret.getText();
+    String authApp = this.authApp.getText();
+    String pin = this.pin.getText();
+    String loginUrl = this.loginUrl.getText();
+    String browserProfile = this.browserProfile.getText();
+    TableModel model = sqTable.getModel();
+    LinkedHashMap<String ,String> securityChallenges = new LinkedHashMap<>();
+    for (int i=0; i<model.getRowCount();i++) {
+      String key = (String) model.getValueAt(i, 0);
+      String value = (String) model.getValueAt(i, 1);
+      securityChallenges.put(key,value);
+    }
+
     return new Login(true, name, description, Instant.now(), identity, secret,
-        "", "", null, "", null);
+        authApp, pin, loginUrl, browserProfile, securityChallenges);
   }
 
-  private void createLogin(Login newLogin1) {
+  private void createLogin(Login toCreate) {
 
-    newLogin = newLogin1;
+    newLogin = toCreate;
     current = newLogin;
     TreePath selectionPath = contextTree.getSelectionPath();
     if (selectionPath != null) {
@@ -434,23 +467,22 @@ public class TopFrame extends JFrame {
       if (selected != null) {
         Application app = (Application) selected.getUserObject();
         app.getLogins().add(newLogin);
-        if (masterPassword == null) {
-          // This should only happen if there was no data file to load.
-          masterPassword = askPassword(null);
-        }
-        if (masterPassword == null) {
-          // we failed don't try to write anything.
-          return;
-        }
         persist();
       }
     }
   }
 
   private void persist() {
+    if (masterPassword == null) {
+      // This should only happen if there was no data file to load.
+      masterPassword = askPassword(null);
+    }
+    if (masterPassword == null) {
+      // we failed don't try to write anything.
+      return;
+    }
     try {
       persistor.write(contextList, masterPassword, location);
-      syncState();
       buildTree();
     } catch (IOException | InvalidKeySpecException | NoSuchPaddingException | NoSuchAlgorithmException |
              InvalidKeyException | InvalidAlgorithmParameterException ex) {
@@ -508,6 +540,15 @@ public class TopFrame extends JFrame {
     loginDescription.setText(login.getDescription());
     identity.setText(login.getIdentity());
     secret.setText(login.getSecret());
+    authApp.setText(login.getAuthApp());
+    pin.setText(login.getPin());
+    loginUrl.setText(login.getLoginUrl());
+    browserProfile.setText(login.getBrowserProfile());
+    DefaultTableModel model = (DefaultTableModel) sqTable.getModel();
+    model.getDataVector().clear();
+    for (Map.Entry<String, String> stringStringEntry : login.getSecurityChallenges().entrySet()) {
+      model.addRow(new Object[]{stringStringEntry.getKey(),stringStringEntry.getValue()});
+    }
     updateLoginButton.setEnabled(true);
   }
 
@@ -542,8 +583,7 @@ public class TopFrame extends JFrame {
     if (value == null) {
       value = JOptionPane.CLOSED_OPTION;
     }
-    int okCxl = (Integer) value;
-    return okCxl;
+    return (int) (Integer) value;
   }
 
   private void clearApplicationPanel() {
@@ -568,6 +608,11 @@ public class TopFrame extends JFrame {
     loginDescription.setEnabled(enabled);
     identity.setEnabled(enabled);
     secret.setEnabled(enabled);
+    pin.setEnabled(enabled);
+    loginUrl.setEnabled(enabled);
+    authApp.setEnabled(enabled);
+    browserProfile.setEnabled(enabled);
+    sqTable.setEnabled(enabled);
     addNewLoginButton.setEnabled(enabled);
   }
 
@@ -598,7 +643,7 @@ public class TopFrame extends JFrame {
     Context userObject = (Context) selected.getUserObject();
     addApplicationDialog.setApplications(userObject.getApplications());
     addApplicationDialog.setVisible(true);
-    SwingUtilities.invokeLater(() -> buildTree());
+    SwingUtilities.invokeLater(this::buildTree);
   }
 
   private void addContext() {
@@ -607,7 +652,7 @@ public class TopFrame extends JFrame {
     }
     addContextDialog.setContexts(contextList);
     addContextDialog.setVisible(true);
-    SwingUtilities.invokeLater(() -> buildTree());
+    SwingUtilities.invokeLater(this::buildTree);
   }
 
   private void contextToggle(MouseEvent e) {
@@ -696,6 +741,10 @@ public class TopFrame extends JFrame {
         contextTree.setSelectionPath(pathForRow);
         newApplication = null;
       }
+      if (newLogin != null && newLogin == ((DefaultMutableTreeNode) pathForRow.getLastPathComponent()).getUserObject()) {
+        contextTree.setSelectionPath(pathForRow);
+        newLogin = null;
+      }
     });
 
     // Note: despite no concrete documentation I could find, the selection setting above will undo
@@ -718,9 +767,6 @@ public class TopFrame extends JFrame {
     consumer.accept(node);
   }
 
-  private void syncState() {
-    updateLoginButton.setEnabled(current != null);
-  }
 
   /**
    * Method generated by IntelliJ IDEA GUI Designer
@@ -783,7 +829,7 @@ public class TopFrame extends JFrame {
     final JPanel spacer2 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
-    gbc.gridy = 9;
+    gbc.gridy = 19;
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.VERTICAL;
     loginDisplay.add(spacer2, gbc);
@@ -800,13 +846,13 @@ public class TopFrame extends JFrame {
     final JPanel spacer3 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
-    gbc.gridy = 9;
+    gbc.gridy = 19;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(spacer3, gbc);
     final JPanel spacer4 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
-    gbc.gridy = 9;
+    gbc.gridy = 19;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(spacer4, gbc);
@@ -888,7 +934,7 @@ public class TopFrame extends JFrame {
     panel3.setLayout(new FlowLayout(FlowLayout.RIGHT, 5, 5));
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
-    gbc.gridy = 8;
+    gbc.gridy = 18;
     gbc.gridwidth = 3;
     gbc.fill = GridBagConstraints.BOTH;
     loginDisplay.add(panel3, gbc);
@@ -903,6 +949,116 @@ public class TopFrame extends JFrame {
     updateLoginButton.setEnabled(false);
     updateLoginButton.setText("Update");
     panel3.add(updateLoginButton);
+    final JLabel label6 = new JLabel();
+    label6.setEnabled(true);
+    label6.setText("Auth App");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 8;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(label6, gbc);
+    final JLabel label7 = new JLabel();
+    label7.setText("PIN");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 10;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(label7, gbc);
+    final JLabel label8 = new JLabel();
+    label8.setText("Login URL");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 12;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(label8, gbc);
+    final JLabel label9 = new JLabel();
+    label9.setText("Browser Profile");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 14;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(label9, gbc);
+    secQPanel = new JPanel();
+    secQPanel.setLayout(new BorderLayout(0, 0));
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 16;
+    gbc.gridwidth = 4;
+    gbc.fill = GridBagConstraints.BOTH;
+    loginDisplay.add(secQPanel, gbc);
+    secQPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), "Security Questions & Other Key/Value Pairs", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+    final JScrollPane scrollPane1 = new JScrollPane();
+    scrollPane1.setPreferredSize(new Dimension(452, 90));
+    secQPanel.add(scrollPane1, BorderLayout.CENTER);
+    sqTable = new JTable();
+    sqTable.setCellSelectionEnabled(true);
+    sqTable.setEnabled(false);
+    sqTable.setMinimumSize(new Dimension(30, 60));
+    sqTable.putClientProperty("JTable.autoStartsEdit", Boolean.TRUE);
+    sqTable.putClientProperty("html.disable", Boolean.FALSE);
+    scrollPane1.setViewportView(sqTable);
+    final JPanel spacer9 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 9;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    loginDisplay.add(spacer9, gbc);
+    final JPanel spacer10 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 11;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    loginDisplay.add(spacer10, gbc);
+    final JPanel spacer11 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 13;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    loginDisplay.add(spacer11, gbc);
+    final JPanel spacer12 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 15;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    loginDisplay.add(spacer12, gbc);
+    final JPanel spacer13 = new JPanel();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 0;
+    gbc.gridy = 17;
+    gbc.fill = GridBagConstraints.VERTICAL;
+    loginDisplay.add(spacer13, gbc);
+    authApp = new JTextField();
+    authApp.setEnabled(false);
+    gbc = new GridBagConstraints();
+    gbc.gridx = 3;
+    gbc.gridy = 8;
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(authApp, gbc);
+    pin = new JTextField();
+    pin.setEnabled(false);
+    gbc = new GridBagConstraints();
+    gbc.gridx = 3;
+    gbc.gridy = 10;
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(pin, gbc);
+    loginUrl = new JTextField();
+    loginUrl.setEnabled(false);
+    gbc = new GridBagConstraints();
+    gbc.gridx = 3;
+    gbc.gridy = 12;
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(loginUrl, gbc);
+    browserProfile = new JTextField();
+    browserProfile.setEnabled(false);
+    gbc = new GridBagConstraints();
+    gbc.gridx = 3;
+    gbc.gridy = 14;
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(browserProfile, gbc);
     contextPanel = new JPanel();
     contextPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -912,25 +1068,25 @@ public class TopFrame extends JFrame {
     gbc.fill = GridBagConstraints.BOTH;
     panel2.add(contextPanel, gbc);
     contextPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), "Context", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, this.$$$getFont$$$(null, -1, -1, contextPanel.getFont()), null));
-    final JLabel label6 = new JLabel();
-    label6.setText("Name");
+    final JLabel label10 = new JLabel();
+    label10.setText("Name");
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
-    contextPanel.add(label6, gbc);
-    final JPanel spacer9 = new JPanel();
+    contextPanel.add(label10, gbc);
+    final JPanel spacer14 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    contextPanel.add(spacer9, gbc);
-    final JPanel spacer10 = new JPanel();
+    contextPanel.add(spacer14, gbc);
+    final JPanel spacer15 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 3;
     gbc.fill = GridBagConstraints.VERTICAL;
-    contextPanel.add(spacer10, gbc);
+    contextPanel.add(spacer15, gbc);
     contextName = new JTextField();
     contextName.setColumns(48);
     contextName.setText("");
@@ -940,31 +1096,31 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     contextPanel.add(contextName, gbc);
-    final JPanel spacer11 = new JPanel();
+    final JPanel spacer16 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    contextPanel.add(spacer11, gbc);
-    final JPanel spacer12 = new JPanel();
+    contextPanel.add(spacer16, gbc);
+    final JPanel spacer17 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    contextPanel.add(spacer12, gbc);
-    final JLabel label7 = new JLabel();
-    label7.setText("Description");
+    contextPanel.add(spacer17, gbc);
+    final JLabel label11 = new JLabel();
+    label11.setText("Description");
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 2;
     gbc.anchor = GridBagConstraints.WEST;
-    contextPanel.add(label7, gbc);
-    final JPanel spacer13 = new JPanel();
+    contextPanel.add(label11, gbc);
+    final JPanel spacer18 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.VERTICAL;
-    contextPanel.add(spacer13, gbc);
+    contextPanel.add(spacer18, gbc);
     contextDescription = new JTextArea();
     contextDescription.setColumns(48);
     contextDescription.setLineWrap(true);
@@ -989,13 +1145,13 @@ public class TopFrame extends JFrame {
     gbc.gridy = 2;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     contextPanel.add(updateContextButton, gbc);
-    final JPanel spacer14 = new JPanel();
+    final JPanel spacer19 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 6;
     gbc.gridy = 0;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    contextPanel.add(spacer14, gbc);
+    contextPanel.add(spacer19, gbc);
     applicationPanel = new JPanel();
     applicationPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -1004,25 +1160,25 @@ public class TopFrame extends JFrame {
     gbc.fill = GridBagConstraints.BOTH;
     panel2.add(applicationPanel, gbc);
     applicationPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), "Application", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-    final JLabel label8 = new JLabel();
-    label8.setText("Name");
+    final JLabel label12 = new JLabel();
+    label12.setText("Name");
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
-    applicationPanel.add(label8, gbc);
-    final JPanel spacer15 = new JPanel();
+    applicationPanel.add(label12, gbc);
+    final JPanel spacer20 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer15, gbc);
-    final JPanel spacer16 = new JPanel();
+    applicationPanel.add(spacer20, gbc);
+    final JPanel spacer21 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 3;
     gbc.fill = GridBagConstraints.VERTICAL;
-    applicationPanel.add(spacer16, gbc);
+    applicationPanel.add(spacer21, gbc);
     applicatioName = new JTextField();
     applicatioName.setColumns(48);
     gbc = new GridBagConstraints();
@@ -1031,31 +1187,31 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     applicationPanel.add(applicatioName, gbc);
-    final JPanel spacer17 = new JPanel();
+    final JPanel spacer22 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer17, gbc);
-    final JPanel spacer18 = new JPanel();
+    applicationPanel.add(spacer22, gbc);
+    final JPanel spacer23 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer18, gbc);
-    final JLabel label9 = new JLabel();
-    label9.setText("Description");
+    applicationPanel.add(spacer23, gbc);
+    final JLabel label13 = new JLabel();
+    label13.setText("Description");
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 2;
     gbc.anchor = GridBagConstraints.WEST;
-    applicationPanel.add(label9, gbc);
-    final JPanel spacer19 = new JPanel();
+    applicationPanel.add(label13, gbc);
+    final JPanel spacer24 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer19, gbc);
+    applicationPanel.add(spacer24, gbc);
     applicationDescription = new JTextArea();
     applicationDescription.setColumns(48);
     applicationDescription.setLineWrap(true);
@@ -1080,13 +1236,13 @@ public class TopFrame extends JFrame {
     gbc.gridy = 2;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     applicationPanel.add(updateApplicationButton, gbc);
-    final JPanel spacer20 = new JPanel();
+    final JPanel spacer25 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 6;
     gbc.gridy = 0;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(spacer20, gbc);
+    applicationPanel.add(spacer25, gbc);
     searchPanel = new JPanel();
     searchPanel.setLayout(new GridBagLayout());
     searchPanel.setAlignmentY(0.5f);
@@ -1101,12 +1257,12 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     searchPanel.add(query, gbc);
-    final JPanel spacer21 = new JPanel();
+    final JPanel spacer26 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 3;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer21, gbc);
+    searchPanel.add(spacer26, gbc);
     searchButton = new JButton();
     searchButton.setText("Search");
     gbc = new GridBagConstraints();
@@ -1114,18 +1270,18 @@ public class TopFrame extends JFrame {
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     searchPanel.add(searchButton, gbc);
-    final JPanel spacer22 = new JPanel();
+    final JPanel spacer27 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer22, gbc);
-    final JPanel spacer23 = new JPanel();
+    searchPanel.add(spacer27, gbc);
+    final JPanel spacer28 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 5;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchPanel.add(spacer23, gbc);
+    searchPanel.add(spacer28, gbc);
     final JPanel panel5 = new JPanel();
     panel5.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
@@ -1154,12 +1310,12 @@ public class TopFrame extends JFrame {
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     searchInfo.add(nextButton, gbc);
-    final JPanel spacer24 = new JPanel();
+    final JPanel spacer29 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchInfo.add(spacer24, gbc);
+    searchInfo.add(spacer29, gbc);
     previousButton = new JButton();
     previousButton.setText("Previous");
     gbc = new GridBagConstraints();
@@ -1174,13 +1330,13 @@ public class TopFrame extends JFrame {
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
     searchInfo.add(hitCount, gbc);
-    final JPanel spacer25 = new JPanel();
+    final JPanel spacer30 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 2;
     gbc.gridy = 0;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    searchInfo.add(spacer25, gbc);
+    searchInfo.add(spacer30, gbc);
     hitCountLabel = new JLabel();
     hitCountLabel.setText("Found:");
     gbc = new GridBagConstraints();
@@ -1188,7 +1344,7 @@ public class TopFrame extends JFrame {
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
     searchInfo.add(hitCountLabel, gbc);
-    final JScrollPane scrollPane1 = new JScrollPane();
+    final JScrollPane scrollPane2 = new JScrollPane();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 0;
@@ -1196,24 +1352,24 @@ public class TopFrame extends JFrame {
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.BOTH;
     gbc.insets = new Insets(5, 0, 0, 0);
-    panel5.add(scrollPane1, gbc);
+    panel5.add(scrollPane2, gbc);
     searchResults = new JEditorPane();
     searchResults.setContentType("text/html");
     searchResults.setEditable(false);
-    scrollPane1.setViewportView(searchResults);
-    final JPanel spacer26 = new JPanel();
+    scrollPane2.setViewportView(searchResults);
+    final JPanel spacer31 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 0;
     gbc.gridy = 3;
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer26, gbc);
-    final JPanel spacer27 = new JPanel();
+    searchPanel.add(spacer31, gbc);
+    final JPanel spacer32 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.VERTICAL;
-    searchPanel.add(spacer27, gbc);
+    searchPanel.add(spacer32, gbc);
     label1.setLabelFor(treeScroll);
   }
 
