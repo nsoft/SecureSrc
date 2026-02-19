@@ -59,6 +59,7 @@ import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.TableModelEvent;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
@@ -212,7 +213,8 @@ public class TopFrame extends JFrame {
     }
     this.fileChooser = new JFileChooser(location);
     $$$setupUI$$$();
-    sqTable.setModel(new DefaultTableModel(3, 2));
+    DefaultTableModel dataModel = new DefaultTableModel(new Object[]{"Question (key)", "Answer (value)"}, 2);
+    sqTable.setModel(dataModel);
     Border border = BorderFactory.createLineBorder(Color.GRAY);
     loginDescription.setBorder(border);
     selected = root;
@@ -546,9 +548,11 @@ public class TopFrame extends JFrame {
     browserProfile.setText(login.getBrowserProfile());
     DefaultTableModel model = (DefaultTableModel) sqTable.getModel();
     model.getDataVector().clear();
+    sqTable.tableChanged(new TableModelEvent(model));
     for (Map.Entry<String, String> stringStringEntry : login.getSecurityChallenges().entrySet()) {
       model.addRow(new Object[]{stringStringEntry.getKey(),stringStringEntry.getValue()});
     }
+    sqTable.tableChanged(new TableModelEvent(model));
     updateLoginButton.setEnabled(true);
   }
 
@@ -600,7 +604,13 @@ public class TopFrame extends JFrame {
     loginDescription.setText("");
     identity.setText("");
     secret.setText("");
-    updateLoginButton.setEnabled(false);
+    authApp.setText("");
+    pin.setText("");
+    loginUrl.setText("");
+    browserProfile.setText("");
+    DefaultTableModel model = (DefaultTableModel) sqTable.getModel();
+    model.getDataVector().clear();
+    sqTable.tableChanged(new TableModelEvent(model));
   }
 
   private void enableLoginPanel(boolean enabled) {

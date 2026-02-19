@@ -4,6 +4,8 @@ This is an identity management (aka password manager) program that is centered a
 One cannot trust code that cannot be understood, and one cannot trust code that is unavailable for inspection.
 Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them. It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
 
+image::images/screenshot.png[]
+
 IMPORTANT: The author of this software and this page is NOT a security researcher.
 What follows is an exposition of motivations and strategies, so that users/reviewers may spot flaws in the thinking and so that users may evaluate for themselves the considerations that went into this software.
 The author IS a professional programmer with over 20 years of Java experience, including participating in security discussions for major open source projects.
