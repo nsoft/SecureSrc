@@ -97,6 +97,7 @@ Currently, this requires Linux or MacOsX. `.bat` file contributions are welcome,
 
 ==== Recommended Way
 
+. Download and isntall a https://www.azul.com/downloads/?version=java-21-lts&package=jdk#zulu[JDK version 21 or higher]
 . Download sourcecode from GitHub releases (Coming Soon)
 . ensure git is https://git-scm.com/book/en/v2/Getting-Started-Installing-Git[installed]
 . Unpack the zipfile and enter the resulting directory (folder)

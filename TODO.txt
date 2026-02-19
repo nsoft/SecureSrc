@@ -3,6 +3,8 @@ Necessary
  - script for user builds (non-gradle)
  - show password and passwordfield for secrets
  - copy to clipboard button for identity, secret, etc.
+ - encryption algorithm preference (and advice in readme)
+ - make a release and remove this file (anything left goes in github issues).
 
 QOL
  - drag and drop logins between applications
