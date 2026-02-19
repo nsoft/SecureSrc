@@ -1,16 +1,14 @@
 = SecureSrc Identity Manager
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
-One cannot trust code that cannot be understood, and one cannot trust code that is unavailable.
-Therefore this program endeavors to remain small and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
-
-:toc:
+One cannot trust code that cannot be understood, and one cannot trust code that is unavailable for inspection.
+Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them. It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
 
 IMPORTANT: The author of this software and this page is NOT a security researcher.
-What follows is an exposition of motiviations and strategies, so that users/reviewers may spot flaws in the thinking and so that users may evaluate for themselves the considerations that went into this software.
+What follows is an exposition of motivations and strategies, so that users/reviewers may spot flaws in the thinking and so that users may evaluate for themselves the considerations that went into this software.
 The author IS a professional programmer with over 20 years of Java experience, including participating in security discussions for major open source projects.
 So while you should question what you read, it is not an entirely uninformed opinion.
-It's unlikely to be perfect, but of course, the hope is it's significantly better than nothing.
+It's xref:_how_could_it_fail[unlikely to be perfect], but of course, the hope is it's significantly better than nothing.
 
 NOTE: I wrote this because I wanted it, not for you. I'm sharing it in the hopes that it will help others. For the love God, humanity, yourself or anything else you might cherish, PLEASE read LICENSE.txt before using it. I will try to maintain it from time to time, but am not paid to do so. Pull Requests and issue reports are welcome.
 
@@ -20,10 +18,10 @@ Another key issue in security is the need to trust somebody.
 It is entirely intractable for every person who wants to maintain passwords, to write their own password management system.
 Not only is it time-consuming and difficult, errors may result in a false sense of security, which in turn causes the user to expose the data to attackers.
 
-NOTE: This project is names SecureSrc because it's intended to be built from source code, minimizing who you have to trust.
+NOTE: This project is named SecureSrc because it's intended to be built from source code, minimizing who you have to trust. You should NEVER download a binary version of it from anywhere.
 
 Since we can't all just DIY password management, we need to trust someone to do it for us.
-SecureSrc attempts (NO WARRANTY, see license!) to limit the trust to only three parties.
+SecureSrc attempts to limit the trusted code to only three parties (NO WARRANTY, see license!).
 
 1. You will be asked to trust the Java vendor of your choice.
 This could be Oracle Corporation, Azul Systems, Amazon (Correto) or any other JDK vendor.
@@ -32,13 +30,16 @@ Before you do however, please note that in doing so you place absolute faith in 
 JDK vendors are multi-million or multi-billion dollar corporations, and there is a fair chance that they will secure their build environment better than you will.
 If you are a professional security researcher that might not be true, in which case, have at it!
 2. You will be asked to trust the good folks at Lucene (Disclaimer: I'm one of them).
-This is the library that is the underpinning of the vast majority of search experiences on commercial websites (like Home Depot, Walmart, Apple, Amazon, etc.).
+This is the library that is the underpinning of the vast majority of search experiences on commercial websites (like Home Depot, Walmart, Apple, Amazon, etc.)
 The lucene code used in this project has NO dependencies on third parties, so everything involved is open source and trusted by the largest companies in the world.
 Because of it's lack of dependencies we can compile it directly from source and there is no need to trust binary distributions.
 3. You will be asked to trust that we have correctly used the security routines supplied by Java. THIS IS NOT trivial and we recognize it.
 That is absolutely why the code for this program is Open Source.
 If you have technical chops or know someone who does, we very much want you to have them evaluate what we have done here.
 If you think you have found an issues by all means let us know with an issue report.
+
+You will also need to trust GitHub to give you a faithful copy of my code, and the code for a small portion of Apache Lucene. There are some other risks too, (see the bottom for some things
+I've thought of)
 
 Here are some things we specifically will not ask you to trust.
 
@@ -58,7 +59,7 @@ One should assume that:
 . File formats will become unsupported eventually (that file of passwords you made in a Lotus 1-2-3 spreadsheet or WordPerfect document in the 1990's is likely inaccessible in 2026!)
 . Media on which data is stored will degrade.
 
-.. Magnetic media suffers "bitflip" errors from cosmic rays,
+.. Magnetic media suffers "bit flip" errors from cosmic rays,
 .. Optical media clouds or may be scratched.
 .. Even paper may yellow or be attacked by insects.
 
@@ -86,7 +87,7 @@ It is also helpful for improved security to only run on devices that have encryp
 
 == Usage
 
-We will never distribute binary code. This would involve trusting the platform hosting the binaries (i.e. github, owned by Microsoft, Maven central, controled by Sonatype, etc.) Therefore, we supply simple instructions for compiling the executable version from source.
+We will never distribute binary code. This would involve trusting the platform hosting the binaries (i.e. GitHub, owned by Microsoft, Maven central, controlled by Sonatype, etc.) Therefore, we supply simple instructions for compiling the executable version from source.
 
 === Building
 
@@ -116,7 +117,7 @@ These instructions are more for Java programmer types who are willing to trust s
 
 === Running
 
-On many systems you need only double-click the jar file. On modern Macs you may need to grant permission to run it using the `Settings > Security & Privacy` tab to run it the first time. Apple does a good job of making sure you really trust the code you just built :).
+On many systems you need only double-click the jar file.On modern Macs you may need to grant permission to run it using the `Settings > Security & Privacy` tab to run it the first time.Apple does a good job of making sure you really trust the code you just built :).
 If that doesn't work open a terminal to the directory where you placed the jar and run:
 
 [source,bash]
@@ -124,8 +125,35 @@ If that doesn't work open a terminal to the directory where you placed the jar a
 java -jar securesrc-1.0.jar
 ----
 
-There are likely a variety of OS/distribution specific ways to run this from a shortcut or application, but I don't doo operating system tech support. This exercise is left for the reader.
+There are likely a variety of OS/distribution specific ways to run this from a shortcut or application, but I don't doo operating system tech support.This exercise is left for the reader.
 
 
+[#_how_could_it_fail]
+== How could it fail?
 
+No security is perfect.This program is meant to
+
+. Give you a file in which to store your passwords that is reasonably difficult to crack, and therefore reasonably safe to archive on Google Drive or other general purpose services.
+. Make finding a password among your 247 passwords a LOT faster than flipping through 35 pages in a notebook.
+. Give you a trustworthy _starting point_.Once you have built a binary, you must take responsibility for keeping it from being subsequently modified.
+
+This program can probably be defeated by:
+
+. An attack that modifies the jar you built AFTER you build it.
+. An attack that scans memory in which the JVM is or has recently run.
+. An attack that scans swap space on disk into which the operating system has paged memory.
+. Keyloggers that observe everything you type (including into fields in this program)
+. An attack that modifies your installed JVM.
+. An attack that can start the program, and script UI interaction to brute force your master password (Although this is intentionally slowed down by a pop-up and forcing a new JVM start for each attempt)
+. A large number of Cyber-spy programs routinely used by corporate IT departments to observe your screen, and/or log your keystrokes.
+
+If you're sensing a theme, there is one. You still need a secure machine. We can't protect you from your own machine.
+
+
+If you are the target of sophisticated hacking (such as a governmental agency or a sophisticated cyber criminal that has identified you as a worthy target) there may be more risks that this program may fail to resist such as (non-exhaustive list):
+
+. Man in the middle attacks altering the source code you download (though this would be detectable if you obtained copies via an uncompromised channel and compared the two copies)
+. Extreme, high-powered cryptographic cracking with large scale GPU or quantum hardware decrypting our save file. It should be very expensive, but if someone has very, very deep pockets you're probably hosed.
+. Bugs discovered in the encryption algorithms I've used. See `src/main/java/com/needhamsoftware/securesrc/encrypt/Encryption.java` for the exact detail on what I used and how I used it.
+. Long term improvements in computing power that may make item 2 progressively cheaper over time.
 
