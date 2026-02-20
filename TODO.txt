@@ -1,5 +1,4 @@
 Necessary
- - copy to clipboard button for identity, secret, etc.
  - encryption algorithm preference (and advice in readme)
  - script for user builds (non-gradle)
  - make a release and remove this file (anything left goes in github issues).

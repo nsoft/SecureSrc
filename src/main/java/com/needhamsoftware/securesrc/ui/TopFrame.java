@@ -9,6 +9,9 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
@@ -36,6 +39,7 @@ import java.util.prefs.Preferences;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
@@ -147,6 +151,8 @@ public class TopFrame extends JFrame {
   private JTextField browserProfile;
   private JCheckBox showSecretCheckBox;
   private JCheckBox showPinCheckBox;
+  private JButton copySecretIconButton;
+  private JButton copyPinIconButton;
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
@@ -242,6 +248,7 @@ public class TopFrame extends JFrame {
     previousButton.addActionListener(e -> previous());
     showSecretCheckBox.addActionListener(new ActionListener() {
       Character orig = null;
+
       @Override
       public void actionPerformed(ActionEvent e) {
         if (orig == null) {
@@ -258,6 +265,7 @@ public class TopFrame extends JFrame {
     });
     showPinCheckBox.addActionListener(new ActionListener() {
       Character orig = null;
+
       @Override
       public void actionPerformed(ActionEvent e) {
         if (orig == null) {
@@ -362,6 +370,19 @@ public class TopFrame extends JFrame {
     this.add($$$getRootComponent$$$());
     buildTree();
     query.addActionListener(e -> search());
+    Icon copyIconSortOf = UIManager.getIcon("FileView.fileIcon");
+    copySecretIconButton.setIcon(copyIconSortOf);
+    copySecretIconButton.addActionListener(e -> {
+      StringSelection stringSelection = new StringSelection(String.copyValueOf(secret.getPassword()));
+      Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+      clipboard.setContents(stringSelection, null);
+    });
+    copyPinIconButton.setIcon(copyIconSortOf);
+    copyPinIconButton.addActionListener(e -> {
+      StringSelection stringSelection = new StringSelection(String.copyValueOf(pin.getPassword()));
+      Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+      clipboard.setContents(stringSelection, null);
+    });
   }
 
   private void menuBar() {
@@ -1172,6 +1193,26 @@ public class TopFrame extends JFrame {
     gbc.gridy = 10;
     gbc.anchor = GridBagConstraints.WEST;
     loginDisplay.add(showPinCheckBox, gbc);
+    copySecretIconButton = new JButton();
+    copySecretIconButton.setPreferredSize(new Dimension(22, 22));
+    copySecretIconButton.setRolloverEnabled(false);
+    copySecretIconButton.setText("");
+    copySecretIconButton.setToolTipText("Copy Password");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 2;
+    gbc.gridy = 6;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(copySecretIconButton, gbc);
+    copyPinIconButton = new JButton();
+    copyPinIconButton.setPreferredSize(new Dimension(22, 22));
+    copyPinIconButton.setRolloverEnabled(false);
+    copyPinIconButton.setText("");
+    copyPinIconButton.setToolTipText("Copy Password");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 2;
+    gbc.gridy = 10;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    loginDisplay.add(copyPinIconButton, gbc);
     contextPanel = new JPanel();
     contextPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
