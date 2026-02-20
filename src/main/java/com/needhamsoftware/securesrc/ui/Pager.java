@@ -90,7 +90,7 @@ public class Pager {
     currentPage = 1;
   }
 
-  private int docsToSkip() {
+  public int docsToSkip() {
     return pageSize * (currentPage - 1);
   }
 

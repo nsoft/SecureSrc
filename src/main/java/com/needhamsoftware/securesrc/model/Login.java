@@ -18,6 +18,7 @@ public class Login extends NamedObject implements Serializable {
   private final String pin;
   private final String loginUrl;
   private final String browserProfile;
+  private final String originalUUID;
   private final LinkedHashMap<String,String> securityChallenges;
 
   public boolean isActive() {
@@ -55,10 +56,11 @@ public class Login extends NamedObject implements Serializable {
   public Login(boolean active, String name, String description,
                Instant createdDate, String identity, String secret,
                String authApp, String pin, String loginUrl,
-               String browserProfile, LinkedHashMap<String,
+               String browserProfile, String originalUUID, LinkedHashMap<String,
           String> securityChallenges) {
     super(name,description);
     this.active = active;
+    this.originalUUID = originalUUID == null ? getUuid() : originalUUID;
     this.createdDate = createdDate;
     this.identity = identity;
     this.secret = secret;
@@ -76,5 +78,9 @@ public class Login extends NamedObject implements Serializable {
 
   public void inActivate() {
     active = false;
+  }
+
+  public String getOriginalUUID() {
+    return originalUUID;
   }
 }

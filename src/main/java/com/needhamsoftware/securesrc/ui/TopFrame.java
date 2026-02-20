@@ -9,6 +9,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
@@ -22,7 +24,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +37,7 @@ import javax.crypto.AEADBadTagException;
 import javax.crypto.NoSuchPaddingException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -112,7 +117,7 @@ public class TopFrame extends JFrame {
   private JTextField loginName;
   private JTextArea loginDescription;
   private JTextField identity;
-  private JTextField secret;
+  private JPasswordField secret;
   private JButton addNewLoginButton;
   private JButton updateLoginButton;
   private JTextField contextName;
@@ -137,9 +142,11 @@ public class TopFrame extends JFrame {
   private JPanel secQPanel;
   private JTable sqTable;
   private JTextField authApp;
-  private JTextField pin;
+  private JPasswordField pin;
   private JTextField loginUrl;
   private JTextField browserProfile;
+  private JCheckBox showSecretCheckBox;
+  private JCheckBox showPinCheckBox;
   private final JPopupMenu treeContextMenu;
   private AddContextDialog addContextDialog;
 
@@ -219,6 +226,7 @@ public class TopFrame extends JFrame {
     loginDescription.setBorder(border);
     selected = root;
     contextTree.setSelectionPath(new TreePath(root.getPath()));
+    contextTree.setCellRenderer(new LoginTreeCellRenderer());
     treeContextMenu = new JPopupMenu();
     newContextPopupItem = new JMenuItem("New Context");
     newContextPopupItem.addActionListener(e -> addContext());
@@ -228,10 +236,43 @@ public class TopFrame extends JFrame {
     newApplicationPopupItem.addActionListener(e -> addApplication());
     addNewApplicationButton.addActionListener(e -> addApplication());
     updateApplicationButton.addActionListener(e -> updateApplication());
-    addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields()));
+    addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields(null)));
     updateLoginButton.addActionListener(e -> updateLogin());
     nextButton.addActionListener(e -> next());
     previousButton.addActionListener(e -> previous());
+    showSecretCheckBox.addActionListener(new ActionListener() {
+      Character orig = null;
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        if (orig == null) {
+          orig = secret.getEchoChar();
+        }
+        if (e.getSource() instanceof JCheckBox cb) {
+          if (cb.isSelected()) {
+            secret.setEchoChar((char) 0);
+          } else {
+            secret.setEchoChar(orig);
+          }
+        }
+      }
+    });
+    showPinCheckBox.addActionListener(new ActionListener() {
+      Character orig = null;
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        if (orig == null) {
+          orig = secret.getEchoChar();
+        }
+        if (e.getSource() instanceof JCheckBox cb) {
+          if (cb.isSelected()) {
+            pin.setEchoChar((char) 0);
+          } else {
+            pin.setEchoChar(orig);
+          }
+        }
+      }
+    });
+
     treeContextMenu.add(newContextPopupItem);
     treeContextMenu.add(newApplicationPopupItem);
     treeContextMenu.setVisible(false);
@@ -250,11 +291,23 @@ public class TopFrame extends JFrame {
             updateApplicationPanel(application);
           }
           if (userObject instanceof Login login) {
-            DefaultMutableTreeNode application = (DefaultMutableTreeNode) selected.getParent();
+
+            DefaultMutableTreeNode clicked = selected;
+            DefaultMutableTreeNode parent = (DefaultMutableTreeNode) clicked.getParent();
+            if (parent.getUserObject() instanceof Login) {
+              // we are an inactive login nested under an active login
+              // need to go up an extra level.
+              parent = (DefaultMutableTreeNode) parent.getParent();
+            }
+            DefaultMutableTreeNode application = parent;
             DefaultMutableTreeNode context = (DefaultMutableTreeNode) application.getParent();
             updateContextPanel((Context) context.getUserObject());
             updateApplicationPanel((Application) application.getUserObject());
             updateLoginPanel(login);
+            if (!login.isActive()) {
+              enableLoginPanel(false);
+              updateLoginButton.setEnabled(false);
+            }
           }
         }
       }
@@ -378,7 +431,7 @@ public class TopFrame extends JFrame {
   }
 
   private void renderSearchResults(SearchResult result) {
-    nextButton.setEnabled(result.totalHits > pager.getPageSize());
+    nextButton.setEnabled(result.totalHits > pager.docsToSkip() + pager.getPageSize());
     previousButton.setEnabled(pager.getCurrentPage() > 1);
     hitCount.setText(String.valueOf(result.totalHits));
     List<Document> search = result.resultPage;
@@ -431,14 +484,14 @@ public class TopFrame extends JFrame {
   }
 
   private void updateLogin() {
-    Login newLogin1 = loginFromFormFields();
     Login userObject = (Login) selected.getUserObject();
+    Login newLogin1 = loginFromFormFields(userObject.getOriginalUUID());
     userObject.inActivate();
     contextTree.setSelectionPath(new TreePath(((DefaultMutableTreeNode) selected.getParent()).getPath()));
     createLogin(newLogin1);
   }
 
-  private Login loginFromFormFields() {
+  private Login loginFromFormFields(String originalUUID) {
     String name = loginName.getText();
     String description = loginDescription.getText();
     String identity = this.identity.getText();
@@ -448,15 +501,15 @@ public class TopFrame extends JFrame {
     String loginUrl = this.loginUrl.getText();
     String browserProfile = this.browserProfile.getText();
     TableModel model = sqTable.getModel();
-    LinkedHashMap<String ,String> securityChallenges = new LinkedHashMap<>();
-    for (int i=0; i<model.getRowCount();i++) {
+    LinkedHashMap<String, String> securityChallenges = new LinkedHashMap<>();
+    for (int i = 0; i < model.getRowCount(); i++) {
       String key = (String) model.getValueAt(i, 0);
       String value = (String) model.getValueAt(i, 1);
-      securityChallenges.put(key,value);
+      securityChallenges.put(key, value);
     }
 
     return new Login(true, name, description, Instant.now(), identity, secret,
-        authApp, pin, loginUrl, browserProfile, securityChallenges);
+        authApp, pin, loginUrl, browserProfile, originalUUID, securityChallenges);
   }
 
   private void createLogin(Login toCreate) {
@@ -467,8 +520,17 @@ public class TopFrame extends JFrame {
     if (selectionPath != null) {
       selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
       if (selected != null) {
-        Application app = (Application) selected.getUserObject();
-        app.getLogins().add(newLogin);
+        DefaultMutableTreeNode curr = selected;
+        Object userObject;
+        for (userObject = curr.getUserObject(); userObject instanceof Login; curr = (DefaultMutableTreeNode) curr.getParent()) {
+          userObject = curr.getUserObject();
+        }
+        // first non-login should be an application
+        if (userObject instanceof Application app) {
+          app.getLogins().add(newLogin);
+        } else {
+          throw new IllegalStateException("Unexpected tree structure");
+        }
         persist();
       }
     }
@@ -550,16 +612,16 @@ public class TopFrame extends JFrame {
     model.getDataVector().clear();
     sqTable.tableChanged(new TableModelEvent(model));
     for (Map.Entry<String, String> stringStringEntry : login.getSecurityChallenges().entrySet()) {
-      model.addRow(new Object[]{stringStringEntry.getKey(),stringStringEntry.getValue()});
+      model.addRow(new Object[]{stringStringEntry.getKey(), stringStringEntry.getValue()});
     }
     sqTable.tableChanged(new TableModelEvent(model));
     updateLoginButton.setEnabled(true);
   }
 
   private KeyWithSalt askPassword(byte[] salt) {
-    JPasswordField pf = new JPasswordField();
-    int okCxl = popUpPasswordDialog(pf);
-    char[] password = pf.getPassword();
+    PasswordPanel pp = new PasswordPanel();
+    int okCxl = popUpPasswordDialog(pp);
+    char[] password = pp.getPasswordField().getPassword();
     if (okCxl == JOptionPane.OK_OPTION) {
       try {
         return Encryption.getKey("AES", KEY_SIZE, password, salt);
@@ -572,11 +634,11 @@ public class TopFrame extends JFrame {
     return null;
   }
 
-  private static int popUpPasswordDialog(JPasswordField pf) {
-    JOptionPane jOptionPane = new JOptionPane(pf, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION) {
+  private static int popUpPasswordDialog(PasswordPanel pp) {
+    JOptionPane jOptionPane = new JOptionPane(pp, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION) {
       @Override
       public void selectInitialValue() {
-        pf.requestFocusInWindow();
+        pp.getPasswordField().requestFocusInWindow();
       }
     };
     JDialog dialog = jOptionPane.createDialog("Enter Password");
@@ -721,16 +783,43 @@ public class TopFrame extends JFrame {
           selectedIsShown = true;
         }
         List<Login> logins = showHistory ? application.getLogins() : application.getActiveLogins();
+        List<Login> revisedLogins = new ArrayList<>();
         for (Login login : logins) {
-          DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
-          model.insertNodeInto(loginChild, applicationChild, applicationChild.getChildCount());
-          if (login == selected.getUserObject()) {
-            contextTree.setSelectionPath(new TreePath(loginChild.getPath()));
-            selected = loginChild;
-            selectedIsShown = true;
+          if (!login.getOriginalUUID().equals(login.getUuid()) && showHistory) {
+            revisedLogins.add(login);
+          } else {
+            DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
+            model.insertNodeInto(loginChild, applicationChild, applicationChild.getChildCount());
+            if (login == selected.getUserObject()) {
+              contextTree.setSelectionPath(new TreePath(loginChild.getPath()));
+              selected = loginChild;
+              selectedIsShown = true;
+            }
           }
+        }
 
-          //todo: update login form
+        // assign children to groups based on original ID
+        Map<String, List<Login>> childrenByOriginal = new HashMap<>();
+        for (Login login : revisedLogins) {
+          childrenByOriginal.computeIfAbsent(login.getOriginalUUID(), l -> new ArrayList<>()).add(login);
+        }
+        // sort each group by creation date
+        for (List<Login> revisionList : childrenByOriginal.values()) {
+          revisionList.sort(Comparator.comparingLong(l -> l.getCreatedDate().toEpochMilli()));
+        }
+        // now add each list to the node in the tree that has a uuid matching the original uuid
+        for (Map.Entry<String, List<Login>> revOriginals : childrenByOriginal.entrySet()) {
+          String originalUUID = revOriginals.getKey();
+          for (Login login : revOriginals.getValue()) {
+            DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
+            DefaultMutableTreeNode parent = findInTree(originalUUID, root);
+            model.insertNodeInto(loginChild, parent, parent.getChildCount());
+            if (login == selected.getUserObject()) {
+              contextTree.setSelectionPath(new TreePath(loginChild.getPath()));
+              selected = loginChild;
+              selectedIsShown = true;
+            }
+          }
         }
       }
     }
@@ -861,7 +950,7 @@ public class TopFrame extends JFrame {
     loginDisplay.add(spacer3, gbc);
     final JPanel spacer4 = new JPanel();
     gbc = new GridBagConstraints();
-    gbc.gridx = 4;
+    gbc.gridx = 5;
     gbc.gridy = 19;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -931,7 +1020,7 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(identity, gbc);
-    secret = new JTextField();
+    secret = new JPasswordField();
     secret.setColumns(60);
     secret.setEnabled(false);
     gbc = new GridBagConstraints();
@@ -993,7 +1082,7 @@ public class TopFrame extends JFrame {
     gbc = new GridBagConstraints();
     gbc.gridx = 1;
     gbc.gridy = 16;
-    gbc.gridwidth = 4;
+    gbc.gridwidth = 5;
     gbc.fill = GridBagConstraints.BOTH;
     loginDisplay.add(secQPanel, gbc);
     secQPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black), "Security Questions & Other Key/Value Pairs", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
@@ -1045,7 +1134,7 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(authApp, gbc);
-    pin = new JTextField();
+    pin = new JPasswordField();
     pin.setEnabled(false);
     gbc = new GridBagConstraints();
     gbc.gridx = 3;
@@ -1069,6 +1158,20 @@ public class TopFrame extends JFrame {
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
     loginDisplay.add(browserProfile, gbc);
+    showSecretCheckBox = new JCheckBox();
+    showSecretCheckBox.setText("Show");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 4;
+    gbc.gridy = 6;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(showSecretCheckBox, gbc);
+    showPinCheckBox = new JCheckBox();
+    showPinCheckBox.setText("show");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 4;
+    gbc.gridy = 10;
+    gbc.anchor = GridBagConstraints.WEST;
+    loginDisplay.add(showPinCheckBox, gbc);
     contextPanel = new JPanel();
     contextPanel.setLayout(new GridBagLayout());
     gbc = new GridBagConstraints();
