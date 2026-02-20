@@ -34,10 +34,12 @@ public class Encryption {
     try {
       return Cipher.getInstance(transformation);
     } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-      throw new EncryptionException("Cipher NOT found! This means that the version of Java you " +
+      throw new EncryptionException("Cipher NOT found! If you attempted a new cipher, check your spelling, and the " +
+          "documentation for your version of Java. If there are no typos in the cipher specification string, this " +
+          "error means that the version of Java you " +
           "are using may be: a) too old (support was not yet added) b) too new (support was dropped) c) from " +
           "a vendor that did not include support for " + transformation + ". This check is performed before data on " +
-          "disk is modified, so your passwords are unmodified and safe. To load previously" +
+          "disk is modified. If you got this error on startup, your passwords are unmodified and safe. To load previously" +
           "saved passwords you will need to obtain a copy of the a JDK that supports " + transformation, e);
     }
   }
@@ -55,13 +57,17 @@ public class Encryption {
 
   }
 
-  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key, int encryptMode, byte[] iv) throws InvalidKeySpecException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
+  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key, int encryptMode, byte[] iv) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
     Cipher result = Cipher.getInstance(cipherspec);
     if(iv == null) {
       iv = new byte[12];
       new SecureRandom().nextBytes(iv);
     }
-    GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, iv);
+    // a bit hacky, but at least gives a *chance* that something else works if it doesn't require parameters.
+    // note that for example AES/CTR/NoPadding will save, but not load due to defaults on write and
+    // no parameters on read. I knew this encryption switching would be dodgy for any trivial implementations
+    // and that's why we make so many backups... and yes the backups do work :)
+    GCMParameterSpec gcmParameterSpec = cipherspec.contains("/GCM/") ? new GCMParameterSpec(128, iv) : null;
     result.init(encryptMode, key.key(), gcmParameterSpec);
     return result;
   }
