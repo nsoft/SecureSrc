@@ -99,15 +99,17 @@ Currently, this requires Linux or MacOsX. `.bat` file contributions are welcome,
 
 ==== Recommended Way
 
+===== Prerequisites
 . Download and isntall a https://www.azul.com/downloads/?version=java-21-lts&package=jdk#zulu[JDK version 21 or higher]
-. Download sourcecode from GitHub releases (Coming Soon)
 . ensure git is https://git-scm.com/book/en/v2/Getting-Started-Installing-Git[installed]
-. Unpack the zipfile and enter the resulting directory (folder)
-. run the getLucene.sh script*
-. run the buildJar.sh script (Coming soon)
-. copy /build/libs/securesrc-1.0.jar to a convenient location
 
-(*) This is the only step where my code requires internet access, and the only access required is https access to Apache/lucene on GitHub.
+===== Steps
+. Download tar.gz from GitHub releases
+. Unpack the zipfile and enter the resulting directory (folder)
+. run the buildJar.sh script*
+
+(*) This is the only step that requires internet access, and the only access required is https access to Apache/lucene on GitHub.
+The scripts involved (build.sh and getLucene.sh) are kept very short and simple so that you can easily understand them.
 
 ==== Lazy, Less secure Way
 

@@ -24,5 +24,6 @@ rm ../../src/main/java/module-info.java
 # this is an overview of Lucene, not us so move it down one.
 mv ../../src/main/java/overview.html ../../src/main/java/org
 
-# Now that we have everything arranged the way we want, drop it into our own source tree.
+# copy some bits lucene needs to load it's classes
+mkdir -p ../../src/main/resources
 cp -a lucene/core/src/resources/* ../../src/main/resources

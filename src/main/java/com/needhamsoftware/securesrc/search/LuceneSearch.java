@@ -123,7 +123,6 @@ public class LuceneSearch {
       Analyzer analyzer = new StandardAnalyzer();
       QueryParser parser = new QueryParser("text", analyzer);
       Query query = parser.parse(queryStr);
-      System.out.println(query);
 
       TopDocs topDocs = searcher.search(query, hits+offset);
       try {

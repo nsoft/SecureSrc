@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.needhamsoftware.misc.md5hashid'
-version = '1.0-SNAPSHOT'
+version = '1.0.0'
 
 jar {
     manifest {
