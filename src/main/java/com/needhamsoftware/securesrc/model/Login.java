@@ -18,7 +18,7 @@ public class Login extends NamedObject implements Serializable {
   private final String pin;
   private final String loginUrl;
   private final String browserProfile;
-  private final String originalUUID;
+  private String originalUUID;
   private final LinkedHashMap<String,String> securityChallenges;
 
   public boolean isActive() {
@@ -82,5 +82,9 @@ public class Login extends NamedObject implements Serializable {
 
   public String getOriginalUUID() {
     return originalUUID;
+  }
+
+  public void setOriginalUUID(String uuid) {
+    originalUUID = uuid;
   }
 }

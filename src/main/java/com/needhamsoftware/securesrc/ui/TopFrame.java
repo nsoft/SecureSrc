@@ -112,6 +112,9 @@ public class TopFrame extends JFrame {
   public static final String SAVE_FILE_NAME = "ssim.dat";
   private static final File DEFAULT_SAVE_LOCATION = new File(USER_HOME_DIR, SAVE_FILE_NAME);
   private final LuceneSearch searcher;
+  private final JMenuItem deleteLoginPopupItem;
+  private final JMenuItem deleteApplicationPopupItem;
+  private final JMenuItem deleteContextPopupItem;
   private File location = DEFAULT_SAVE_LOCATION;
 
   private final JMenuItem newApplicationPopupItem;
@@ -252,6 +255,14 @@ public class TopFrame extends JFrame {
     updateContextButton.addActionListener(e -> updateContext());
     newApplicationPopupItem = new JMenuItem("New Application");
     newApplicationPopupItem.addActionListener(e -> addApplication());
+
+    deleteLoginPopupItem = new JMenuItem("Delete Login");
+    deleteApplicationPopupItem = new JMenuItem("Delete Application");
+    deleteContextPopupItem = new JMenuItem("Delete Context");
+    deleteLoginPopupItem.addActionListener(e -> deleteLogin());
+    deleteApplicationPopupItem.addActionListener(e -> deleteApplication());
+    deleteContextPopupItem.addActionListener(e -> deleteContext());
+
     addNewApplicationButton.addActionListener(e -> addApplication());
     updateApplicationButton.addActionListener(e -> updateApplication());
     addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields(null)));
@@ -295,6 +306,9 @@ public class TopFrame extends JFrame {
 
     treeContextMenu.add(newContextPopupItem);
     treeContextMenu.add(newApplicationPopupItem);
+    treeContextMenu.add(deleteLoginPopupItem);
+    treeContextMenu.add(deleteApplicationPopupItem);
+    treeContextMenu.add(deleteContextPopupItem);
     treeContextMenu.setVisible(false);
     contextTree.addTreeSelectionListener(e -> {
       TreePath selectionPath = contextTree.getSelectionPath();
@@ -360,7 +374,9 @@ public class TopFrame extends JFrame {
         URL url = e.getURL();
         String uuid = url.getHost();
         DefaultMutableTreeNode inTree = findInTree(uuid, root);
-        contextTree.setSelectionPath(new TreePath(inTree.getPath()));
+        TreePath path = new TreePath(inTree.getPath());
+        contextTree.setSelectionPath(path);
+        contextTree.scrollPathToVisible(path);
       }
     });
     searchResults.addFocusListener(new FocusAdapter() {
@@ -397,6 +413,65 @@ public class TopFrame extends JFrame {
     });
   }
 
+  private void deleteContext() {
+    if (selected.getUserObject() instanceof Context ctx) {
+      if (ctx.getApplications().isEmpty()) {
+        contextList.remove(ctx);
+        buildTree();
+        persist();
+      } else {
+        JOptionPane.showMessageDialog(this, "Please remove all applications first.");
+      }
+    } else {
+      System.err.println("Not a Context?");
+    }
+  }
+
+  private void deleteLogin() {
+    DefaultMutableTreeNode tmp = selected;
+    Object clickedObj = tmp.getUserObject();
+    while ((tmp.getUserObject() instanceof Login)) {
+      tmp = (DefaultMutableTreeNode) tmp.getParent();
+    }
+    if (tmp.getUserObject() instanceof Application app) {
+      Login toDelete = (Login) clickedObj;
+      if (toDelete.getOriginalUUID().equals(toDelete.getUuid())) {
+        // we're deleting the ultimate ancestor, and we need to promote the first child
+        if (selected.getChildCount() > 0) {
+          DefaultMutableTreeNode childAt = (DefaultMutableTreeNode) selected.getChildAt(0);
+          Login firstChild = (Login) childAt.getUserObject();
+          String newParentUUID = firstChild.getUuid();
+          firstChild.setOriginalUUID(newParentUUID);
+          List<DefaultMutableTreeNode> others = new ArrayList<>();
+          collectRelatedLogins(toDelete.getUuid(),others,root);
+          for (DefaultMutableTreeNode other : others) {
+            Login toFix = (Login) other.getUserObject();
+            toFix.setOriginalUUID(newParentUUID);
+          }
+        }
+      }
+      app.getLogins().remove(toDelete);
+      selected = tmp;
+    }
+    persist();
+  }
+
+  private void deleteApplication() {
+    if (selected.getUserObject() instanceof Application app) {
+      if (app.getLogins().isEmpty()) {
+        DefaultMutableTreeNode parent = (DefaultMutableTreeNode) selected.getParent();
+        Context ctx = (Context) parent.getUserObject();
+        ctx.getApplications().remove(app);
+        buildTree();
+        persist();
+      } else {
+        JOptionPane.showMessageDialog(this, "Please remove all logins first.");
+      }
+    } else {
+      System.err.println("Not an Application?");
+    }
+  }
+
   private void menuBar() {
     this.menubar = new JMenuBar();
     this.prefsMenu = new JMenu("Preferences");
@@ -426,7 +501,7 @@ public class TopFrame extends JFrame {
         }
       }
     });
-    newEncryption.addActionListener(e ->  {
+    newEncryption.addActionListener(e -> {
       EncryptionUpdatePanel eup = new EncryptionUpdatePanel();
       eup.getCipherSpec().setText(outputCipher);
       eup.getKeySize().setText(String.valueOf(keySize));
@@ -459,7 +534,7 @@ public class TopFrame extends JFrame {
           prefs.put(PREF_KEY_SIZE, String.valueOf(keySize));
         }
       }
-      if ((Integer)value == JOptionPane.OK_OPTION) {
+      if ((Integer) value == JOptionPane.OK_OPTION) {
         try {
           Encryption.loadCipher(spec);
           outputCipher = spec;
@@ -467,7 +542,7 @@ public class TopFrame extends JFrame {
           persistor = new Persistor(spec);
           updateEncryptionDisplay(spec);
         } catch (EncryptionException ex) {
-          JOptionPane.showMessageDialog(this, "<html><body><p style='width: 200px;'>"+ex.getMessage()+"</p></body></html>");
+          JOptionPane.showMessageDialog(this, "<html><body><p style='width: 200px;'>" + ex.getMessage() + "</p></body></html>");
           ex.printStackTrace();
         }
       }
@@ -674,6 +749,20 @@ public class TopFrame extends JFrame {
     return null;
   }
 
+  void collectRelatedLogins(String originalUUID, List<DefaultMutableTreeNode> collected, DefaultMutableTreeNode root) {
+    if (root.getChildCount() > 0) {
+      int childCount = root.getChildCount();
+      for (int i = 0; i < childCount; i++) {
+        collectRelatedLogins(originalUUID,collected, (DefaultMutableTreeNode) root.getChildAt(i));
+      }
+    }
+    if (root.getUserObject() instanceof Login login) {
+      if (login.getOriginalUUID().equals(originalUUID)) {
+        collected.add(root);
+      }
+    }
+  }
+
   public static String escapeHtml(String html) {
     if (html == null) {
       return "null";
@@ -721,13 +810,12 @@ public class TopFrame extends JFrame {
   private static JOptionPane findOptionPane(JComponent parent) {
     JOptionPane pane;
     if (!(parent instanceof JOptionPane)) {
-      pane = findOptionPane((JComponent)parent.getParent());
+      pane = findOptionPane((JComponent) parent.getParent());
     } else {
       pane = (JOptionPane) parent;
     }
     return pane;
   }
-
 
   private KeyWithSalt askPassword(byte[] salt, int ksize, boolean confirm) {
     PasswordPanel pp = new PasswordPanel();
@@ -763,7 +851,7 @@ public class TopFrame extends JFrame {
       parentPane.setValue(JOptionPane.CANCEL_OPTION);
     });
     pp.setExternalOkButton(ok);
-    JOptionPane jOptionPane = new JOptionPane(pp, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION, null, new Object[]{ok,cancel}, ok) {
+    JOptionPane jOptionPane = new JOptionPane(pp, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION, null, new Object[]{ok, cancel}, ok) {
       @Override
       public void selectInitialValue() {
         pp.getPasswordField().requestFocusInWindow();
@@ -871,9 +959,27 @@ public class TopFrame extends JFrame {
     if (selected == root) {
       newContextPopupItem.setVisible(true);
       newApplicationPopupItem.setVisible(false);
+      deleteLoginPopupItem.setVisible(false);
+      deleteApplicationPopupItem.setVisible(false);
+      deleteContextPopupItem.setVisible(false);
     } else if (selected != null && selected.getUserObject() instanceof Context) {
       newApplicationPopupItem.setVisible(true);
       newContextPopupItem.setVisible(false);
+      deleteLoginPopupItem.setVisible(false);
+      deleteApplicationPopupItem.setVisible(false);
+      deleteContextPopupItem.setVisible(true);
+    } else if (selected != null && selected.getUserObject() instanceof Application) {
+      newApplicationPopupItem.setVisible(false);
+      newContextPopupItem.setVisible(false);
+      deleteLoginPopupItem.setVisible(false);
+      deleteApplicationPopupItem.setVisible(true);
+      deleteContextPopupItem.setVisible(false);
+    } else if (selected != null && selected.getUserObject() instanceof Login) {
+      newApplicationPopupItem.setVisible(false);
+      newContextPopupItem.setVisible(false);
+      deleteLoginPopupItem.setVisible(true);
+      deleteApplicationPopupItem.setVisible(false);
+      deleteContextPopupItem.setVisible(false);
     } else {
       e.consume();
       return;
