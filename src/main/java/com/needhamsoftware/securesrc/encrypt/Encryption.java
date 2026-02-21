@@ -46,7 +46,7 @@ public class Encryption {
 
   public static KeyWithSalt getKey(String cipher, int keySize, char[] password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
     if (salt == null) {
-      salt = new byte[128];
+      salt = new byte[keySize];
       SecureRandom random = new SecureRandom();
       random.nextBytes(salt);
     }
@@ -57,7 +57,7 @@ public class Encryption {
 
   }
 
-  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key, int encryptMode, byte[] iv) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
+  public static Cipher getConfiguredCipher(String cipherspec, KeyWithSalt key, int encryptMode, byte[] iv, int tLen) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
     Cipher result = Cipher.getInstance(cipherspec);
     if(iv == null) {
       iv = new byte[12];
@@ -67,8 +67,10 @@ public class Encryption {
     // note that for example AES/CTR/NoPadding will save, but not load due to defaults on write and
     // no parameters on read. I knew this encryption switching would be dodgy for any trivial implementations
     // and that's why we make so many backups... and yes the backups do work :)
-    GCMParameterSpec gcmParameterSpec = cipherspec.contains("/GCM/") ? new GCMParameterSpec(128, iv) : null;
+    GCMParameterSpec gcmParameterSpec = cipherspec.contains("/GCM/") ? new GCMParameterSpec(tLen, iv) : null;
     result.init(encryptMode, key.key(), gcmParameterSpec);
+    // String.valueOf(result.getParameters()); might give us the defaults when they are used, but
+    // parsing that ino a spec object seems intractable. More research to be done here to improve upgrade options.
     return result;
   }
 

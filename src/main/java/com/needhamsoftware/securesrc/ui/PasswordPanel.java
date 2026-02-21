@@ -1,22 +1,34 @@
 package com.needhamsoftware.securesrc.ui;
 
+import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Arrays;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 public class PasswordPanel extends JPanel {
   public JPasswordField getPasswordField() {
     return passwordField;
   }
 
+  public JPasswordField getConfirmPassword() {
+    return confirmPassword;
+  }
+
   private JPasswordField passwordField;
   private JCheckBox showCheckBox;
   private JPanel layoutPanel;
+  private JPasswordField confirmPassword;
+  private JCheckBox showConfirm;
+  private JButton externalOkButton; // button used by the JOptionPane/dialog displaying us.
 
   public PasswordPanel() {
     showCheckBox.addActionListener(new ActionListener() {
@@ -36,7 +48,71 @@ public class PasswordPanel extends JPanel {
         }
       }
     });
+    showConfirm.addActionListener(new ActionListener() {
+      Character orig = null;
+
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        if (orig == null) {
+          orig = confirmPassword.getEchoChar();
+        }
+        if (e.getSource() instanceof JCheckBox cb) {
+          if (cb.isSelected()) {
+            confirmPassword.setEchoChar((char) 0);
+          } else {
+            confirmPassword.setEchoChar(orig);
+          }
+        }
+      }
+    });
+
     this.add(layoutPanel);
+    DocumentListener checkConfirm = new DocumentListener() {
+
+      @Override
+      public void insertUpdate(DocumentEvent e) {
+        update();
+      }
+
+      @Override
+      public void removeUpdate(DocumentEvent e) {
+        update();
+      }
+
+      @Override
+      public void changedUpdate(DocumentEvent e) {
+        update();
+      }
+
+      private void update() {
+        char[] password = passwordField.getPassword();
+        char[] confirm = confirmPassword.getPassword();
+        if (confirmPassword.isVisible() && !Arrays.equals(password, confirm)) {
+          confirmPassword.setBackground(new Color(255, 180, 180));
+          passwordField.setBackground(new Color(255, 180, 180));
+          externalOkButton.setEnabled(false);
+        } else {
+          confirmPassword.setBackground(new Color(255, 255, 255));
+          passwordField.setBackground(new Color(255, 255, 255));
+          externalOkButton.setEnabled(true);
+        }
+      }
+
+    };
+    confirmPassword.getDocument().addDocumentListener(checkConfirm);
+    passwordField.getDocument().addDocumentListener(checkConfirm);
+  }
+
+
+  public void setExternalOkButton(JButton externalOkButton) {
+    this.externalOkButton = externalOkButton;
+  }
+
+  public void requireConfirm(boolean required) {
+    if (!required) {
+      confirmPassword.setVisible(false);
+      showConfirm.setVisible(false);
+    }
   }
 
   {
@@ -96,6 +172,20 @@ public class PasswordPanel extends JPanel {
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.VERTICAL;
     layoutPanel.add(spacer4, gbc);
+    confirmPassword = new JPasswordField();
+    gbc = new GridBagConstraints();
+    gbc.gridx = 1;
+    gbc.gridy = 3;
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    layoutPanel.add(confirmPassword, gbc);
+    showConfirm = new JCheckBox();
+    showConfirm.setText("Show");
+    gbc = new GridBagConstraints();
+    gbc.gridx = 2;
+    gbc.gridy = 3;
+    gbc.anchor = GridBagConstraints.WEST;
+    layoutPanel.add(showConfirm, gbc);
   }
 
   /**

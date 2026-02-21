@@ -2,8 +2,8 @@ package com.needhamsoftware.securesrc.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -97,7 +97,9 @@ public class TopFrame extends JFrame {
   private static final String USER_HOME = System.getProperty("user.home");
   private static final File USER_HOME_DIR;
   public static final String CIPHER_PROP = "com.needhamsoftware.securesrc.cipher";
-  public static final int KEY_SIZE = 128;
+  public static final int DEFAULT_KEY_SIZE = 128;
+  public static final String PREF_CIPHER_SPEC = "cipher_spec";
+  public static final String PREF_KEY_SIZE = "key_size";
 
   static {
     try {
@@ -158,7 +160,7 @@ public class TopFrame extends JFrame {
   private AddContextDialog addContextDialog;
 
   private JMenuBar menubar;
-  private JMenu viewMenu;
+  private JMenu prefsMenu;
   private JCheckBoxMenuItem viewHistoryMenuItem;
   private JMenuItem saveFileLocation;
 
@@ -173,11 +175,13 @@ public class TopFrame extends JFrame {
   private DefaultMutableTreeNode root;
   private AddApplicationDialog addApplicationDialog;
   private String outputCipher = DEFAULT_CIPHER_SPEC;
+  private int keySize = DEFAULT_KEY_SIZE;
   Persistor persistor;
   KeyWithSalt masterPassword;
   private boolean showHistory;
   Pager pager = new Pager();
   private JMenuItem newEncryption;
+  private JMenuItem changeMasterPassword;
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
@@ -189,7 +193,8 @@ public class TopFrame extends JFrame {
     }
 
     // if the user has configured an alternate encryption
-    outputCipher = prefs.get("cipher_spec", outputCipher);
+    outputCipher = prefs.get(PREF_CIPHER_SPEC, outputCipher);
+    keySize = Integer.parseInt(prefs.get(PREF_KEY_SIZE, String.valueOf(keySize)));
 
     // emergency override of cipher spec via command line system prop.
     String property = System.getProperty(CIPHER_PROP);
@@ -208,7 +213,7 @@ public class TopFrame extends JFrame {
           KeyWithSalt keyWithSalt = null;
           while (keyWithSalt == null) {
             // if this is failing we're doomed
-            keyWithSalt = askPassword(s);
+            keyWithSalt = askPassword(s, keySize, false);
           }
           masterPassword = keyWithSalt;
           return masterPassword;
@@ -239,7 +244,7 @@ public class TopFrame extends JFrame {
     selected = root;
     contextTree.setSelectionPath(new TreePath(root.getPath()));
     contextTree.setCellRenderer(new LoginTreeCellRenderer());
-    encryptionSpecDisplay.setText(outputCipher);
+    updateEncryptionDisplay(outputCipher);
     treeContextMenu = new JPopupMenu();
     newContextPopupItem = new JMenuItem("New Context");
     newContextPopupItem.addActionListener(e -> addContext());
@@ -394,10 +399,12 @@ public class TopFrame extends JFrame {
 
   private void menuBar() {
     this.menubar = new JMenuBar();
-    this.viewMenu = new JMenu("Preferences");
+    this.prefsMenu = new JMenu("Preferences");
     this.viewHistoryMenuItem = new JCheckBoxMenuItem("View History");
     this.saveFileLocation = new JMenuItem("Save File Location...");
     this.newEncryption = new JMenuItem("Change Encryption");
+    this.changeMasterPassword = new JMenuItem("Change Password");
+
     this.viewHistoryMenuItem.addActionListener(e -> {
       showHistory = viewHistoryMenuItem.isSelected();
       buildTree();
@@ -419,8 +426,10 @@ public class TopFrame extends JFrame {
         }
       }
     });
-    newEncryption.addActionListener( e ->  {
+    newEncryption.addActionListener(e ->  {
       EncryptionUpdatePanel eup = new EncryptionUpdatePanel();
+      eup.getCipherSpec().setText(outputCipher);
+      eup.getKeySize().setText(String.valueOf(keySize));
 
       JOptionPane jOptionPane = new JOptionPane(eup, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION) {
         @Override
@@ -428,6 +437,7 @@ public class TopFrame extends JFrame {
           eup.getCipherSpec().requestFocusInWindow();
         }
       };
+
       JDialog dialog = jOptionPane.createDialog("Enter Password");
       dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
       dialog.setVisible(true);
@@ -438,25 +448,48 @@ public class TopFrame extends JFrame {
       }
 
       String spec = eup.getCipherSpec().getText();
+      String text = eup.getKeySize().getText();
+      Preferences prefs = Preferences.userRoot().node(TopFrame.this.getClass().getName());
+      if (text != null && !text.trim().isEmpty() && Integer.parseInt(text) != keySize) {
+        int size = Integer.parseInt(text);
+        KeyWithSalt newPW = askPassword(null, size, true);
+        if (newPW != null) {
+          masterPassword = newPW;
+          keySize = size;
+          prefs.put(PREF_KEY_SIZE, String.valueOf(keySize));
+        }
+      }
       if ((Integer)value == JOptionPane.OK_OPTION) {
         try {
           Encryption.loadCipher(spec);
           outputCipher = spec;
-          Preferences prefs = Preferences.userRoot().node(TopFrame.this.getClass().getName());
-          prefs.put("cipher_spec", outputCipher);
+          prefs.put(PREF_CIPHER_SPEC, outputCipher);
           persistor = new Persistor(spec);
-          encryptionSpecDisplay.setText(spec);
+          updateEncryptionDisplay(spec);
         } catch (EncryptionException ex) {
           JOptionPane.showMessageDialog(this, "<html><body><p style='width: 200px;'>"+ex.getMessage()+"</p></body></html>");
           ex.printStackTrace();
         }
       }
+      persist();
     });
-    this.viewMenu.add(viewHistoryMenuItem);
-    this.viewMenu.add(saveFileLocation);
-    this.viewMenu.add(newEncryption);
-    this.menubar.add(viewMenu);
+    changeMasterPassword.addActionListener(e -> {
+      KeyWithSalt newPw = askPassword(null, keySize, true);
+      if (newPw != null) {
+        masterPassword = newPw;
+        persist();
+      }
+    });
+    this.prefsMenu.add(viewHistoryMenuItem);
+    this.prefsMenu.add(saveFileLocation);
+    this.prefsMenu.add(newEncryption);
+    this.prefsMenu.add(changeMasterPassword);
+    this.menubar.add(prefsMenu);
     this.setJMenuBar(menubar);
+  }
+
+  private void updateEncryptionDisplay(String spec) {
+    encryptionSpecDisplay.setText(spec + " (" + keySize + ")");
   }
 
   private void search() {
@@ -518,12 +551,9 @@ public class TopFrame extends JFrame {
 
   private void updateContext() {
     Object userObject = selected.getUserObject();
-    if (userObject instanceof Login) {
+    while (userObject instanceof Login || userObject instanceof Application) {
       selected = (DefaultMutableTreeNode) selected.getParent();
-    }
-    userObject = selected.getUserObject();
-    if (userObject instanceof Application) {
-      selected = (DefaultMutableTreeNode) selected.getParent();
+      userObject = selected.getUserObject();
     }
     Context contextObject = (Context) selected.getUserObject();
     contextObject.setName(contextName.getText());
@@ -535,8 +565,9 @@ public class TopFrame extends JFrame {
 
   private void updateApplication() {
     Object userObject = selected.getUserObject();
-    if (userObject instanceof Login) {
+    while (userObject instanceof Login) {
       selected = (DefaultMutableTreeNode) selected.getParent();
+      userObject = selected.getUserObject();
     }
     Application applicationObject = (Application) selected.getUserObject();
     applicationObject.setName(applicatioName.getText());
@@ -554,6 +585,7 @@ public class TopFrame extends JFrame {
     createLogin(newLogin1);
   }
 
+  @SuppressWarnings("deprecation")
   private Login loginFromFormFields(String originalUUID) {
     String name = loginName.getText();
     String description = loginDescription.getText();
@@ -605,7 +637,7 @@ public class TopFrame extends JFrame {
   private boolean persist() {
     if (masterPassword == null) {
       // This should only happen if there was no data file to load.
-      masterPassword = askPassword(null);
+      masterPassword = askPassword(null, keySize, true);
     }
     if (masterPassword == null) {
       // we failed don't try to write anything.
@@ -686,13 +718,28 @@ public class TopFrame extends JFrame {
     updateLoginButton.setEnabled(true);
   }
 
-  private KeyWithSalt askPassword(byte[] salt) {
+  private static JOptionPane findOptionPane(JComponent parent) {
+    JOptionPane pane;
+    if (!(parent instanceof JOptionPane)) {
+      pane = findOptionPane((JComponent)parent.getParent());
+    } else {
+      pane = (JOptionPane) parent;
+    }
+    return pane;
+  }
+
+
+  private KeyWithSalt askPassword(byte[] salt, int ksize, boolean confirm) {
     PasswordPanel pp = new PasswordPanel();
+    pp.requireConfirm(confirm);
     int okCxl = popUpPasswordDialog(pp);
     char[] password = pp.getPasswordField().getPassword();
+    if (password.length == 0) {
+      return null;
+    }
     if (okCxl == JOptionPane.OK_OPTION) {
       try {
-        return Encryption.getKey("AES", KEY_SIZE, password, salt);
+        return Encryption.getKey("AES", ksize, password, salt);
       } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
         JOptionPane.showMessageDialog(this, "Unable to has password for " + outputCipher + "\n" +
             ex.getClass() + " Exception message:" + ex.getMessage());
@@ -703,13 +750,38 @@ public class TopFrame extends JFrame {
   }
 
   private static int popUpPasswordDialog(PasswordPanel pp) {
-    JOptionPane jOptionPane = new JOptionPane(pp, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION) {
+    JButton ok = new JButton("Ok");
+    JButton cancel = new JButton("Cancel");
+    ok.addActionListener(e -> {
+      JButton source = (JButton) e.getSource();
+      JOptionPane parentPane = findOptionPane(source);
+      parentPane.setValue(JOptionPane.OK_OPTION);
+    });
+    cancel.addActionListener(e -> {
+      JButton source = (JButton) e.getSource();
+      JOptionPane parentPane = findOptionPane(source);
+      parentPane.setValue(JOptionPane.CANCEL_OPTION);
+    });
+    pp.setExternalOkButton(ok);
+    JOptionPane jOptionPane = new JOptionPane(pp, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION, null, new Object[]{ok,cancel}, ok) {
       @Override
       public void selectInitialValue() {
         pp.getPasswordField().requestFocusInWindow();
       }
     };
+    List<Component> focusItems = new ArrayList<>();
+    focusItems.add(pp.getPasswordField());
+    JPasswordField conf = pp.getConfirmPassword();
+    if (conf.isVisible()) {
+      focusItems.add(conf);
+    }
+    focusItems.add(ok);
+    focusItems.add(cancel);
+
+    FocusTraversalList policy = new FocusTraversalList(focusItems);
+    jOptionPane.setFocusTraversalPolicy(policy);
     JDialog dialog = jOptionPane.createDialog("Enter Password");
+    dialog.setFocusTraversalPolicy(policy);
     dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
     dialog.setVisible(true);
     Object value = jOptionPane.getValue();
@@ -1663,4 +1735,5 @@ public class TopFrame extends JFrame {
     contextTree = new JTree(buildTree());
     // TODO: place custom component creation code here
   }
+
 }

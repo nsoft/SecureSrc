@@ -85,7 +85,7 @@ public class Persistor {
     // fail half-way through writing the file
     Cipher temp; // Build a new one so that we never loose track of the original settings or have race conditions.
     String cipherspec = cipher.getAlgorithm();
-    temp = Encryption.getConfiguredCipher(cipherspec, masterPassword, Cipher.ENCRYPT_MODE, null);
+    temp = Encryption.getConfiguredCipher(cipherspec, masterPassword, Cipher.ENCRYPT_MODE, null, 128);
     byte[] encryptedArray = Encryption.encryptData(contextList, temp);
     byte[] cipherSpecBytes = cipherspec.getBytes(StandardCharsets.UTF_8);
     byte[] ivData = temp.getIV();
@@ -99,7 +99,7 @@ public class Persistor {
    *
    * @param p a producer callback likely asking the user for their password.
    *
-   * @param location1
+   * @param location the location from which to read the file
    * @return A list of contexts loaded from encrypted storage.
    * @throws NoSuchPaddingException if the padding in cipher spec is invalid
    * @throws InvalidKeySpecException if the cipher spec is invalid
@@ -107,9 +107,9 @@ public class Persistor {
    * @throws InvalidKeyException if the key supplied is invalid
    * @throws IOException if any of the stream IO operations fail.
    */
-  public List<Context> readEncryptedStorage(Function<byte[],KeyWithSalt> p, File location1) throws NoSuchPaddingException, InvalidKeySpecException, NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException {
+  public List<Context> readEncryptedStorage(Function<byte[],KeyWithSalt> p, File location) throws NoSuchPaddingException, InvalidKeySpecException, NoSuchAlgorithmException, InvalidKeyException, IOException, ClassNotFoundException, InvalidAlgorithmParameterException {
 
-    var dis = new DataInputStream(new FileInputStream(location1));
+    var dis = new DataInputStream(new FileInputStream(location));
     int version = dis.readInt();
     if (VERSION != version) {
       // there has only been one version, but in case an old copy is someday invoked on something newer...
@@ -124,7 +124,7 @@ public class Persistor {
     byte[] encrypted = dis.readAllBytes();
     Cipher temp;
     String cipherSpec = new String(cipherSpecBytes,StandardCharsets.UTF_8);
-    temp = Encryption.getConfiguredCipher(cipherSpec, p.apply(salt), Cipher.DECRYPT_MODE, iv);
+    temp = Encryption.getConfiguredCipher(cipherSpec, p.apply(salt), Cipher.DECRYPT_MODE, iv, 128);
 
     ByteArrayInputStream bais = new ByteArrayInputStream(encrypted);
     dis.close();
@@ -155,10 +155,10 @@ public class Persistor {
    * crashes during file output, etc.
    *
    * @throws IOException if we can't read or write one of the files.
-   * @param location1
+   * @param location the directory containing the save file and backups.
    */
-  private void makeBackups(File location1) throws IOException {
-    String canonicalPath = location1.getCanonicalPath();
+  private void makeBackups(File location) throws IOException {
+    String canonicalPath = location.getCanonicalPath();
 
     // intentionally simplistic to avoid any off by one or other silly errors
     // This is our guard against bitrot and corruption.
@@ -196,8 +196,8 @@ public class Persistor {
     if (backup1.exists()) {
       Files.copy(backup1.toPath(), backup2.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
     }
-    if (location1.exists()) {
-      Files.copy(location1.toPath(), backup1.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
+    if (location.exists()) {
+      Files.copy(location.toPath(), backup1.toPath(), REPLACE_EXISTING, COPY_ATTRIBUTES);
     }
   }
 }

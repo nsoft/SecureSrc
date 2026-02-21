@@ -1,5 +1,5 @@
 Necessary
- - encryption algorithm preference (and advice in readme)
+ - delete logins
  - script for user builds (non-gradle)
  - make a release and remove this file (anything left goes in github issues).
 
