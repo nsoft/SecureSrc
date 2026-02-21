@@ -109,7 +109,7 @@ Currently, this requires Linux or MacOsX. `.bat` file contributions are welcome,
 . run the buildJar.sh script*
 
 (*) This is the only step that requires internet access, and the only access required is https access to Apache/lucene on GitHub.
-The scripts involved (build.sh and getLucene.sh) are kept very short and simple so that you can easily understand them.
+The scripts involved (buildJar.sh and getLucene.sh) are kept very short and simple so that you can easily understand them.
 
 ==== Lazy, Less secure Way
 
