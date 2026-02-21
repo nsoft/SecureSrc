@@ -826,7 +826,9 @@ public class TopFrame extends JFrame {
     }
     if (okCxl == JOptionPane.OK_OPTION) {
       try {
-        return Encryption.getKey("AES", ksize, password, salt);
+        KeyWithSalt key = Encryption.getKey("AES", ksize, password, salt);
+        keySize = key.salt().length;
+        return key;
       } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
         JOptionPane.showMessageDialog(this, "Unable to hash password for " + outputCipher + "\n" +
             ex.getClass() + " Exception message:" + ex.getMessage());
