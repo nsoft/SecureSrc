@@ -188,7 +188,6 @@ public class TopFrame extends JFrame {
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
-    // todo preferences api for file location.
     Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
     String saveLocation = prefs.get("save_location", null);
     if (saveLocation != null) {
@@ -216,7 +215,7 @@ public class TopFrame extends JFrame {
           KeyWithSalt keyWithSalt = null;
           while (keyWithSalt == null) {
             // if this is failing we're doomed
-            keyWithSalt = askPassword(s, keySize, false);
+            keyWithSalt = askPassword(s, s.length, false);
           }
           masterPassword = keyWithSalt;
           return masterPassword;
@@ -829,7 +828,7 @@ public class TopFrame extends JFrame {
       try {
         return Encryption.getKey("AES", ksize, password, salt);
       } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
-        JOptionPane.showMessageDialog(this, "Unable to has password for " + outputCipher + "\n" +
+        JOptionPane.showMessageDialog(this, "Unable to hash password for " + outputCipher + "\n" +
             ex.getClass() + " Exception message:" + ex.getMessage());
         ex.printStackTrace();
       }
