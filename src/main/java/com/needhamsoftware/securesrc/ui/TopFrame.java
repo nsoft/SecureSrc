@@ -69,6 +69,7 @@ import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
@@ -169,12 +170,11 @@ public class TopFrame extends JFrame {
 
   private final JFileChooser fileChooser;
 
-  List<Context> contextList = new ArrayList<>();
-  Login current;
-  DefaultMutableTreeNode selected;
+  private List<Context> contextList = new ArrayList<>();
+  private DefaultMutableTreeNode selected;
   Context newContext;
   Application newApplication;
-  Login newLogin;
+  private Login newLogin;
   private DefaultMutableTreeNode root;
   private AddApplicationDialog addApplicationDialog;
   private String outputCipher = DEFAULT_CIPHER_SPEC;
@@ -185,6 +185,8 @@ public class TopFrame extends JFrame {
   Pager pager = new Pager();
   private JMenuItem newEncryption;
   private JMenuItem changeMasterPassword;
+  private String sqTableDirty;
+  private int editingRow;
 
   public TopFrame(String title) throws HeadlessException {
     super(title);
@@ -241,9 +243,46 @@ public class TopFrame extends JFrame {
     $$$setupUI$$$();
     DefaultTableModel dataModel = new DefaultTableModel(new Object[]{"Question (key)", "Answer (value)"}, 2);
     sqTable.setModel(dataModel);
+    sqTable.setColumnSelectionAllowed(true);
+    sqTable.setCellSelectionEnabled(true);
+    sqTable.setSurrendersFocusOnKeystroke(true);
+    dataModel.addTableModelListener(new TableModelListener() {
+      volatile boolean reacting;
+
+      @Override
+      public void tableChanged(TableModelEvent e) {
+        if (sqTable.getEditorComponent() != null) {
+          TopFrame.this.sqTableDirty = ((Login) getSelected().getUserObject()).getUuid();
+        }
+        int column = e.getColumn();
+        if (column == 1 && !reacting) {
+          editingRow = e.getFirstRow();
+          reacting = true;
+          padTable((DefaultTableModel) sqTable.getModel(), editingRow + 1);
+          clickAt(++editingRow, 0);
+          reacting = false;
+        }
+      }
+    });
+    sqTable.addFocusListener(new FocusAdapter() {
+      @Override
+      public void focusLost(FocusEvent e) {
+        Component oc = e.getOppositeComponent();
+        // editing a cell shifts focus to the cell.
+        // don't want to persist until user stops editing
+        if (oc != null && "Table.editor".equals(oc.getName())) {
+          return;
+        }
+        if (sqTableDirty != null) {
+          DefaultMutableTreeNode inTree = findInTree(sqTableDirty, root);
+          updateLogin((Login) inTree.getUserObject());
+          sqTableDirty = null;
+        }
+      }
+    });
     Border border = BorderFactory.createLineBorder(Color.GRAY);
     loginDescription.setBorder(border);
-    selected = root;
+    setSelected(root);
     contextTree.setSelectionPath(new TreePath(root.getPath()));
     contextTree.setCellRenderer(new LoginTreeCellRenderer());
     updateEncryptionDisplay(outputCipher);
@@ -265,7 +304,7 @@ public class TopFrame extends JFrame {
     addNewApplicationButton.addActionListener(e -> addApplication());
     updateApplicationButton.addActionListener(e -> updateApplication());
     addNewLoginButton.addActionListener(e -> createLogin(loginFromFormFields(null)));
-    updateLoginButton.addActionListener(e -> updateLogin());
+    updateLoginButton.addActionListener(e -> updateLogin((Login) getSelected().getUserObject()));
     nextButton.addActionListener(e -> next());
     previousButton.addActionListener(e -> previous());
     showSecretCheckBox.addActionListener(new ActionListener() {
@@ -309,23 +348,23 @@ public class TopFrame extends JFrame {
     treeContextMenu.add(deleteApplicationPopupItem);
     treeContextMenu.add(deleteContextPopupItem);
     treeContextMenu.setVisible(false);
-    contextTree.addTreeSelectionListener(e -> {
+    contextTree.addTreeSelectionListener(e -> SwingUtilities.invokeLater(() -> {
       TreePath selectionPath = contextTree.getSelectionPath();
       if (selectionPath != null) {
-        selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
-        if (selected != null) {
-          Object userObject = selected.getUserObject();
+        setSelected((DefaultMutableTreeNode) selectionPath.getLastPathComponent());
+        if (getSelected() != null) {
+          Object userObject = getSelected().getUserObject();
           if (userObject instanceof Context context) {
             updateContextPanel(context);
           }
           if (userObject instanceof Application application) {
-            DefaultMutableTreeNode context = (DefaultMutableTreeNode) selected.getParent();
+            DefaultMutableTreeNode context = (DefaultMutableTreeNode) getSelected().getParent();
             updateContextPanel((Context) context.getUserObject());
             updateApplicationPanel(application);
           }
           if (userObject instanceof Login login) {
 
-            DefaultMutableTreeNode clicked = selected;
+            DefaultMutableTreeNode clicked = getSelected();
             DefaultMutableTreeNode parent = (DefaultMutableTreeNode) clicked.getParent();
             if (parent.getUserObject() instanceof Login) {
               // we are an inactive login nested under an active login
@@ -344,7 +383,7 @@ public class TopFrame extends JFrame {
           }
         }
       }
-    });
+    }));
 
     contextTree.addMouseListener(new MouseAdapter() {
       @Override
@@ -412,8 +451,15 @@ public class TopFrame extends JFrame {
     });
   }
 
+  @SuppressWarnings("SameParameterValue")
+  private void clickAt(int row, int column) {
+    sqTable.editCellAt(row, column);
+    sqTable.setRowSelectionInterval(row, row);
+    sqTable.setColumnSelectionInterval(column, column);
+  }
+
   private void deleteContext() {
-    if (selected.getUserObject() instanceof Context ctx) {
+    if (getSelected().getUserObject() instanceof Context ctx) {
       if (ctx.getApplications().isEmpty()) {
         contextList.remove(ctx);
         buildTree();
@@ -427,7 +473,7 @@ public class TopFrame extends JFrame {
   }
 
   private void deleteLogin() {
-    DefaultMutableTreeNode tmp = selected;
+    DefaultMutableTreeNode tmp = getSelected();
     Object clickedObj = tmp.getUserObject();
     while ((tmp.getUserObject() instanceof Login)) {
       tmp = (DefaultMutableTreeNode) tmp.getParent();
@@ -436,13 +482,13 @@ public class TopFrame extends JFrame {
       Login toDelete = (Login) clickedObj;
       if (toDelete.getOriginalUUID().equals(toDelete.getUuid())) {
         // we're deleting the ultimate ancestor, and we need to promote the first child
-        if (selected.getChildCount() > 0) {
-          DefaultMutableTreeNode childAt = (DefaultMutableTreeNode) selected.getChildAt(0);
+        if (getSelected().getChildCount() > 0) {
+          DefaultMutableTreeNode childAt = (DefaultMutableTreeNode) getSelected().getChildAt(0);
           Login firstChild = (Login) childAt.getUserObject();
           String newParentUUID = firstChild.getUuid();
           firstChild.setOriginalUUID(newParentUUID);
           List<DefaultMutableTreeNode> others = new ArrayList<>();
-          collectRelatedLogins(toDelete.getUuid(),others,root);
+          collectRelatedLogins(toDelete.getUuid(), others, root);
           for (DefaultMutableTreeNode other : others) {
             Login toFix = (Login) other.getUserObject();
             toFix.setOriginalUUID(newParentUUID);
@@ -450,15 +496,15 @@ public class TopFrame extends JFrame {
         }
       }
       app.getLogins().remove(toDelete);
-      selected = tmp;
+      setSelected(tmp);
     }
     persist();
   }
 
   private void deleteApplication() {
-    if (selected.getUserObject() instanceof Application app) {
+    if (getSelected().getUserObject() instanceof Application app) {
       if (app.getLogins().isEmpty()) {
-        DefaultMutableTreeNode parent = (DefaultMutableTreeNode) selected.getParent();
+        DefaultMutableTreeNode parent = (DefaultMutableTreeNode) getSelected().getParent();
         Context ctx = (Context) parent.getUserObject();
         ctx.getApplications().remove(app);
         buildTree();
@@ -624,12 +670,12 @@ public class TopFrame extends JFrame {
   }
 
   private void updateContext() {
-    Object userObject = selected.getUserObject();
+    Object userObject = getSelected().getUserObject();
     while (userObject instanceof Login || userObject instanceof Application) {
-      selected = (DefaultMutableTreeNode) selected.getParent();
-      userObject = selected.getUserObject();
+      setSelected((DefaultMutableTreeNode) getSelected().getParent());
+      userObject = getSelected().getUserObject();
     }
-    Context contextObject = (Context) selected.getUserObject();
+    Context contextObject = (Context) getSelected().getUserObject();
     contextObject.setName(contextName.getText());
     contextObject.setDescription(contextDescription.getText());
     newContext = contextObject;
@@ -638,12 +684,12 @@ public class TopFrame extends JFrame {
   }
 
   private void updateApplication() {
-    Object userObject = selected.getUserObject();
+    Object userObject = getSelected().getUserObject();
     while (userObject instanceof Login) {
-      selected = (DefaultMutableTreeNode) selected.getParent();
-      userObject = selected.getUserObject();
+      setSelected((DefaultMutableTreeNode) getSelected().getParent());
+      userObject = getSelected().getUserObject();
     }
-    Application applicationObject = (Application) selected.getUserObject();
+    Application applicationObject = (Application) getSelected().getUserObject();
     applicationObject.setName(applicatioName.getText());
     applicationObject.setDescription(applicationDescription.getText());
     newApplication = applicationObject;
@@ -651,12 +697,11 @@ public class TopFrame extends JFrame {
 
   }
 
-  private void updateLogin() {
-    Login userObject = (Login) selected.getUserObject();
-    Login newLogin1 = loginFromFormFields(userObject.getOriginalUUID());
-    userObject.inActivate();
-    contextTree.setSelectionPath(new TreePath(((DefaultMutableTreeNode) selected.getParent()).getPath()));
-    createLogin(newLogin1);
+  private void updateLogin(Login login) {
+    Login newLogin = loginFromFormFields(login.getOriginalUUID());
+    login.inActivate();
+    contextTree.setSelectionPath(new TreePath(((DefaultMutableTreeNode) getSelected().getParent()).getPath()));
+    createLogin(newLogin);
   }
 
   @SuppressWarnings("deprecation")
@@ -684,12 +729,11 @@ public class TopFrame extends JFrame {
   private void createLogin(Login toCreate) {
 
     newLogin = toCreate;
-    current = newLogin;
     TreePath selectionPath = contextTree.getSelectionPath();
     if (selectionPath != null) {
-      selected = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
-      if (selected != null) {
-        DefaultMutableTreeNode curr = selected;
+      setSelected((DefaultMutableTreeNode) selectionPath.getLastPathComponent());
+      if (getSelected() != null) {
+        DefaultMutableTreeNode curr = getSelected();
         Object userObject;
         for (userObject = curr.getUserObject(); userObject instanceof Login; curr = (DefaultMutableTreeNode) curr.getParent()) {
           userObject = curr.getUserObject();
@@ -752,7 +796,7 @@ public class TopFrame extends JFrame {
     if (root.getChildCount() > 0) {
       int childCount = root.getChildCount();
       for (int i = 0; i < childCount; i++) {
-        collectRelatedLogins(originalUUID,collected, (DefaultMutableTreeNode) root.getChildAt(i));
+        collectRelatedLogins(originalUUID, collected, (DefaultMutableTreeNode) root.getChildAt(i));
       }
     }
     if (root.getUserObject() instanceof Login login) {
@@ -802,8 +846,15 @@ public class TopFrame extends JFrame {
     for (Map.Entry<String, String> stringStringEntry : login.getSecurityChallenges().entrySet()) {
       model.addRow(new Object[]{stringStringEntry.getKey(), stringStringEntry.getValue()});
     }
+    padTable(model, 3);
     sqTable.tableChanged(new TableModelEvent(model));
     updateLoginButton.setEnabled(true);
+  }
+
+  private static void padTable(DefaultTableModel model, int minrows) {
+    do {
+      model.addRow(new Object[]{"", ""});
+    } while (model.getRowCount() < minrows);
   }
 
   private static JOptionPane findOptionPane(JComponent parent) {
@@ -941,7 +992,7 @@ public class TopFrame extends JFrame {
     if (addApplicationDialog == null) {
       addApplicationDialog = new AddApplicationDialog(this);
     }
-    Context userObject = (Context) selected.getUserObject();
+    Context userObject = (Context) getSelected().getUserObject();
     addApplicationDialog.setApplications(userObject.getApplications());
     addApplicationDialog.setVisible(true);
     SwingUtilities.invokeLater(this::buildTree);
@@ -957,25 +1008,25 @@ public class TopFrame extends JFrame {
   }
 
   private void contextToggle(MouseEvent e) {
-    if (selected == root) {
+    if (getSelected() == root) {
       newContextPopupItem.setVisible(true);
       newApplicationPopupItem.setVisible(false);
       deleteLoginPopupItem.setVisible(false);
       deleteApplicationPopupItem.setVisible(false);
       deleteContextPopupItem.setVisible(false);
-    } else if (selected != null && selected.getUserObject() instanceof Context) {
+    } else if (getSelected() != null && getSelected().getUserObject() instanceof Context) {
       newApplicationPopupItem.setVisible(true);
       newContextPopupItem.setVisible(false);
       deleteLoginPopupItem.setVisible(false);
       deleteApplicationPopupItem.setVisible(false);
       deleteContextPopupItem.setVisible(true);
-    } else if (selected != null && selected.getUserObject() instanceof Application) {
+    } else if (getSelected() != null && getSelected().getUserObject() instanceof Application) {
       newApplicationPopupItem.setVisible(false);
       newContextPopupItem.setVisible(false);
       deleteLoginPopupItem.setVisible(false);
       deleteApplicationPopupItem.setVisible(true);
       deleteContextPopupItem.setVisible(false);
-    } else if (selected != null && selected.getUserObject() instanceof Login) {
+    } else if (getSelected() != null && getSelected().getUserObject() instanceof Login) {
       newApplicationPopupItem.setVisible(false);
       newContextPopupItem.setVisible(false);
       deleteLoginPopupItem.setVisible(true);
@@ -1016,30 +1067,30 @@ public class TopFrame extends JFrame {
     for (Context context : contextList) {
       DefaultMutableTreeNode contextChild = new DefaultMutableTreeNode(context);
       model.insertNodeInto(contextChild, root, root.getChildCount());
-      if (context == selected.getUserObject()) {
+      if (context == getSelected().getUserObject()) {
         contextTree.setSelectionPath(new TreePath(contextChild.getPath()));
-        selected = contextChild;
+        setSelected(contextChild);
         selectedIsShown = true;
       }
       for (Application application : context.getApplications()) {
         DefaultMutableTreeNode applicationChild = new DefaultMutableTreeNode(application);
         model.insertNodeInto(applicationChild, contextChild, contextChild.getChildCount());
-        if (application == selected.getUserObject()) {
+        if (application == getSelected().getUserObject()) {
           contextTree.setSelectionPath(new TreePath(applicationChild.getPath()));
-          selected = applicationChild;
+          setSelected(applicationChild);
           selectedIsShown = true;
         }
         List<Login> logins = showHistory ? application.getLogins() : application.getActiveLogins();
         List<Login> revisedLogins = new ArrayList<>();
         for (Login login : logins) {
-          if (!login.getOriginalUUID().equals(login.getUuid()) && showHistory) {
+          if (showHistory && !login.getOriginalUUID().equals(login.getUuid())) {
             revisedLogins.add(login);
           } else {
             DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
             model.insertNodeInto(loginChild, applicationChild, applicationChild.getChildCount());
-            if (login == selected.getUserObject()) {
+            if (login == getSelected().getUserObject()) {
               contextTree.setSelectionPath(new TreePath(loginChild.getPath()));
-              selected = loginChild;
+              setSelected(loginChild);
               selectedIsShown = true;
             }
           }
@@ -1061,9 +1112,9 @@ public class TopFrame extends JFrame {
             DefaultMutableTreeNode loginChild = new DefaultMutableTreeNode(login);
             DefaultMutableTreeNode parent = findInTree(originalUUID, root);
             model.insertNodeInto(loginChild, parent, parent.getChildCount());
-            if (login == selected.getUserObject()) {
+            if (login == getSelected().getUserObject()) {
               contextTree.setSelectionPath(new TreePath(loginChild.getPath()));
-              selected = loginChild;
+              setSelected(loginChild);
               selectedIsShown = true;
             }
           }
@@ -1073,7 +1124,6 @@ public class TopFrame extends JFrame {
     if (!selectedIsShown) {
       contextTree.setSelectionPath(new TreePath(root.getPath()));
     }
-
 
     model.reload();
 
@@ -1843,4 +1893,11 @@ public class TopFrame extends JFrame {
     // TODO: place custom component creation code here
   }
 
+  private DefaultMutableTreeNode getSelected() {
+    return selected;
+  }
+
+  private void setSelected(DefaultMutableTreeNode selected) {
+    this.selected = selected;
+  }
 }
