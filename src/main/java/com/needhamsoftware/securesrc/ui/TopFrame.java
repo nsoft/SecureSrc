@@ -132,7 +132,7 @@ public class TopFrame extends JFrame {
   private JButton updateLoginButton;
   private JTextField contextName;
   private JTextArea contextDescription;
-  private JTextField applicatioName;
+  private JTextField applicationName;
   private JTextArea applicationDescription;
   private JPanel contextPanel;
   private JPanel applicationPanel;
@@ -354,6 +354,9 @@ public class TopFrame extends JFrame {
         setSelected((DefaultMutableTreeNode) selectionPath.getLastPathComponent());
         if (getSelected() != null) {
           Object userObject = getSelected().getUserObject();
+          if (userObject instanceof String) {
+            clearContextPannel();
+          }
           if (userObject instanceof Context context) {
             updateContextPanel(context);
           }
@@ -410,6 +413,11 @@ public class TopFrame extends JFrame {
       HyperlinkEvent.EventType eventType = e.getEventType();
       if (eventType.equals(HyperlinkEvent.EventType.ACTIVATED)) {
         URL url = e.getURL();
+        // Note that we ignore the url scheme, and no web request is
+        // conducted, were just grabbing a UUID so we can find the
+        // item we want to select in the tree navigation left panel
+        // In other words the "host" is just a UUID, not anything
+        // addressable on the web.
         String uuid = url.getHost();
         DefaultMutableTreeNode inTree = findInTree(uuid, root);
         TreePath path = new TreePath(inTree.getPath());
@@ -449,6 +457,7 @@ public class TopFrame extends JFrame {
       Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
       clipboard.setContents(stringSelection, null);
     });
+    contextTree.setSelectionPath(new TreePath(new Object[]{root}));
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -654,6 +663,11 @@ public class TopFrame extends JFrame {
     // build html for our JEditorPane to display
     StringBuilder html = new StringBuilder("<html><head></head><body><ul>");
     for (Document document : search) {
+      // JEditorPane will try to produce a URL object based on the href
+      // element so to make the links in the search panel clickable
+      // we have to give them a bogus http scheme. No web requests
+      // will be made since this is only used by com/needhamsoftware/securesrc/ui/TopFrame.java:412
+      // the href will look like http://d593301b-6dac-46ca-b9af-406e46660385
       html.append("<li><a href=\"http://");
       html.append(escapeHtml(document.get("id")));
       html.append("\"><strong>");
@@ -690,7 +704,7 @@ public class TopFrame extends JFrame {
       userObject = getSelected().getUserObject();
     }
     Application applicationObject = (Application) getSelected().getUserObject();
-    applicationObject.setName(applicatioName.getText());
+    applicationObject.setName(applicationName.getText());
     applicationObject.setDescription(applicationDescription.getText());
     newApplication = applicationObject;
     persist();
@@ -932,13 +946,30 @@ public class TopFrame extends JFrame {
     return (int) (Integer) value;
   }
 
+  private void clearContextPannel() {
+    contextName.setText("");
+    contextDescription.setText("");
+    enableContext(false);
+    addNewContextButton.setEnabled(true);
+    clearApplicationPanel();
+    enableApplicationPannel(false);
+  }
+
+  private void enableApplicationPannel(boolean enabled) {
+    this.applicationName.setEnabled(enabled);
+    this.applicationDescription.setEnabled(enabled);
+    updateApplicationButton.setEnabled(enabled);
+    addNewApplicationButton.setEnabled(enabled);
+  }
+
   private void clearApplicationPanel() {
-    this.applicatioName.setText("");
+    this.applicationName.setText("");
     this.applicationDescription.setText("");
     this.applicationPanel.setToolTipText("");
+    enableApplicationPannel(false);
+    addNewApplicationButton.setEnabled(true);
     clearLoginPanel();
     enableLoginPanel(false);
-    updateApplicationButton.setEnabled(false);
   }
 
   private void clearLoginPanel() {
@@ -969,10 +1000,10 @@ public class TopFrame extends JFrame {
   }
 
   private void updateApplicationPanel(Application context) {
-    applicatioName.setText(context.getName());
+    applicationName.setText(context.getName());
     applicationDescription.setText(context.getDescription());
     applicationPanel.setToolTipText("Created on:" + context.getCreatedDate().toString());
-    updateApplicationButton.setEnabled(true);
+    enableApplicationPannel(true);
     addNewApplicationButton.setEnabled(false);
     clearLoginPanel();
     enableLoginPanel(true);
@@ -982,10 +1013,16 @@ public class TopFrame extends JFrame {
     contextName.setText(context.getName());
     contextDescription.setText(context.getDescription());
     contextPanel.setToolTipText("Created on:" + context.getCreatedDate().toString());
-    updateContextButton.setEnabled(true);
+    enableContext(true);
     addNewContextButton.setEnabled(false);
-    addNewApplicationButton.setEnabled(true);
     clearApplicationPanel();
+  }
+
+  private void enableContext(boolean enabled) {
+    contextName.setEnabled(enabled);
+    contextDescription.setEnabled(enabled);
+    updateContextButton.setEnabled(enabled);
+    addNewApplicationButton.setEnabled(enabled);
   }
 
   private void addApplication() {
@@ -1665,14 +1702,14 @@ public class TopFrame extends JFrame {
     gbc.gridy = 3;
     gbc.fill = GridBagConstraints.VERTICAL;
     applicationPanel.add(spacer26, gbc);
-    applicatioName = new JTextField();
-    applicatioName.setColumns(48);
+    applicationName = new JTextField();
+    applicationName.setColumns(48);
     gbc = new GridBagConstraints();
     gbc.gridx = 3;
     gbc.gridy = 0;
     gbc.anchor = GridBagConstraints.WEST;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    applicationPanel.add(applicatioName, gbc);
+    applicationPanel.add(applicationName, gbc);
     final JPanel spacer27 = new JPanel();
     gbc = new GridBagConstraints();
     gbc.gridx = 4;
