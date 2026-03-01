@@ -21,6 +21,7 @@ public class Main {
     SwingUtilities.invokeLater(() -> {
       TopFrame topFrame = new TopFrame("SecureSrc");
       topFrame.pack();
+      topFrame.setLocationRelativeTo(null);
       topFrame.setVisible(true);
     });
   }
