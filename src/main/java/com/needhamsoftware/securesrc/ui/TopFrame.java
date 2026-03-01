@@ -394,13 +394,13 @@ public class TopFrame extends JFrame {
         int rowForLocation = contextTree.getRowForLocation(e.getX(), e.getY());
         contextTree.setSelectionPath(contextTree.getPathForRow(rowForLocation));
         if (e.isPopupTrigger()) {
-          contextToggle(e);
+          SwingUtilities.invokeLater(() -> contextToggle(e));
         }
       }
 
       public void mouseReleased(MouseEvent e) {
         if (e.isPopupTrigger()) {
-          contextToggle(e);
+          SwingUtilities.invokeLater(() -> contextToggle(e));
         }
       }
     });
