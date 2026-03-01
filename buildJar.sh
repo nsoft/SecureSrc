@@ -13,7 +13,7 @@ HOMEDIR=`pwd`
 
 # compile our .java files into .class files
 cd src/main/java
-find -name "*.java" > sources.txt
+find . -name "*.java" > sources.txt
 javac -d $HOMEDIR/distBuild @sources.txt
 
 # grab a few files lucene needs to load it's parts.
