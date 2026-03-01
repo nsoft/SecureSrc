@@ -473,6 +473,7 @@ public class TopFrame extends JFrame {
         contextList.remove(ctx);
         buildTree();
         persist();
+        search();
       } else {
         JOptionPane.showMessageDialog(this, "Please remove all applications first.");
       }
@@ -508,6 +509,10 @@ public class TopFrame extends JFrame {
       setSelected(tmp);
     }
     persist();
+    search(); // ensure results don't contain deleted
+    DefaultMutableTreeNode finalTmp = tmp;
+    // ensure the login panel doesn't retain deleted
+    SwingUtilities.invokeLater(()-> contextTree.setSelectionPath(new TreePath(finalTmp.getPath())));
   }
 
   private void deleteApplication() {
@@ -518,6 +523,7 @@ public class TopFrame extends JFrame {
         ctx.getApplications().remove(app);
         buildTree();
         persist();
+        search();
       } else {
         JOptionPane.showMessageDialog(this, "Please remove all logins first.");
       }
@@ -537,9 +543,7 @@ public class TopFrame extends JFrame {
     this.viewHistoryMenuItem.addActionListener(e -> {
       showHistory = viewHistoryMenuItem.isSelected();
       buildTree();
-      if (query.getText() != null && !query.getText().isEmpty()) {
-        search();
-      }
+      search();
     });
     saveFileLocation.addActionListener(e -> {
       fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -623,8 +627,11 @@ public class TopFrame extends JFrame {
 
   private void search() {
     try {
-      SearchResult result = pager.firstPage(i -> searcher.search(query.getText(), pager.getPageSize(), i));
-      renderSearchResults(result);
+      String text = query.getText();
+      if (text != null && !text.isEmpty()) {
+        SearchResult result = pager.firstPage(i -> searcher.search(text, pager.getPageSize(), i));
+        renderSearchResults(result);
+      }
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     } catch (ParseException ex) {
