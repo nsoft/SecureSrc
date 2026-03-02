@@ -22,6 +22,6 @@ cp -a * $HOMEDIR/distBuild
 cd $HOMEDIR
 
 # create the executable jar file
-jar --create --verbose --file securesrc-1.0.1.jar --main-class com.needhamsoftware.securesrc.Main -C distBuild/ .
+jar --create --verbose --file securesrc-1.1.0.jar --main-class com.needhamsoftware.securesrc.Main -C distBuild/ .
 
-echo 'Build complete! If you type java -jar securesrc-1.0.1.jar on the command line right now, the application should run'
+echo 'Build complete! If you type java -jar securesrc-1.1.0.jar on the command line right now, the application should run'
