@@ -9,8 +9,7 @@ ifdef::env-github[]
 endif::[]
 ifndef::env-github[]
 endif::[]
-:toc:
-:toc-placement!:
+:toc: macro
 
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
