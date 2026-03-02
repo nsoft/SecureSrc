@@ -441,8 +441,6 @@ public class TopFrame extends JFrame {
     topPanel.setVisible(true);
     menuBar();
     this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    this.add($$$getRootComponent$$$());
-    buildTree();
     query.addActionListener(e -> search());
     Icon copyIconSortOf = UIManager.getIcon("FileView.fileIcon");
     copySecretIconButton.setIcon(copyIconSortOf);
@@ -457,6 +455,20 @@ public class TopFrame extends JFrame {
       Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
       clipboard.setContents(stringSelection, null);
     });
+    JComponent comp = $$$getRootComponent$$$();
+    comp.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke("F3"),
+        "goToSearch");
+    comp.getInputMap(WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke('S', InputEvent.CTRL_DOWN_MASK),
+        "goToSearch");
+    comp.getActionMap().put("goToSearch",
+        new AbstractAction() {
+          @Override
+          public void actionPerformed(ActionEvent e) {
+            query.requestFocusInWindow();
+          }
+        });
+    this.add(comp);
+    buildTree();
     contextTree.setSelectionPath(new TreePath(new Object[]{root}));
   }
 
