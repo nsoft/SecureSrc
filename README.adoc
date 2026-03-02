@@ -21,7 +21,7 @@ One cannot trust code that cannot be understood, and one cannot trust code that 
 Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
 It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
 
-:toc:[]
+toc::[]
 
 image::images/screenshot.png[]
 
