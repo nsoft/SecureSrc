@@ -69,6 +69,7 @@
                     </constraints>
                     <properties>
                       <enabled value="true"/>
+                      <name value="loginDisplayPanel"/>
                     </properties>
                     <border type="line" title="Login Info"/>
                     <children>

@@ -76,8 +76,12 @@ public class Login extends NamedObject implements Serializable {
     return name;
   }
 
-  public void inActivate() {
+  public void inactivate() {
     active = false;
+  }
+
+  public void activate() {
+    active = true;
   }
 
   public String getOriginalUUID() {
