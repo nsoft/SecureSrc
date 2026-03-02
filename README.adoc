@@ -11,7 +11,7 @@ ifndef::env-github[]
 endif::[]
 :toc:
 :toc-placement: macro
-
+:numbered:
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
 One cannot trust code that cannot be understood, and one cannot trust code that is unavailable for inspection.
