@@ -1,14 +1,23 @@
 package com.needhamsoftware.securesrc.search;
 
+import static org.apache.lucene.document.Field.Store.NO;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeModel;
+import com.needhamsoftware.securesrc.model.Login;
 import com.needhamsoftware.securesrc.model.NamedObject;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.StopFilter;
+import org.apache.lucene.analysis.StopwordAnalyzerBase;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -51,7 +60,29 @@ public class LuceneSearch {
    * @param model
    */
   public void indexTreeModel(TreeModel model) {
-    StandardAnalyzer analyzer = new StandardAnalyzer();
+    Analyzer analyzer = new StopwordAnalyzerBase() {
+      private final int maxTokenLength = 1_048_576;
+
+      @Override
+      protected TokenStreamComponents createComponents(final String fieldName) {
+        final StandardTokenizer src = new StandardTokenizer();
+        src.setMaxTokenLength(maxTokenLength);
+        TokenStream tok = new LowerCaseFilter(src);
+        tok = new StopFilter(tok, stopwords);
+        return new TokenStreamComponents(
+            r -> {
+              src.setMaxTokenLength(maxTokenLength);
+              src.setReader(r);
+            },
+            tok);
+      }
+
+      @Override
+      public int getPositionIncrementGap(String fieldName) {
+        return 100;
+      }
+    };
+
     IndexWriterConfig config = new IndexWriterConfig(analyzer);
     try {
       try (IndexWriter indexWriter = new IndexWriter(index, config)) {
@@ -92,24 +123,61 @@ public class LuceneSearch {
         })
         .collect(Collectors.joining(" > "));
 
-    StringBuilder text = new StringBuilder();
-    text.append(pathStr).append(" ");
+    doc.add(new TextField("text", pathStr, Field.Store.NO));
     doc.add(new StringField("path", pathStr, Field.Store.YES));
     doc.add(new StringField("breadcrumb", breadCrumb, Field.Store.YES));
 
     Object obj = root.getUserObject();
-    if (obj instanceof NamedObject userObject) {
-      String name = userObject.getName();
-      text.append(name).append(" ");
+    if (obj instanceof NamedObject named) {
+      String name = named.getName();
+      doc.add(new TextField("text", name, Field.Store.NO));
       doc.add(new TextField("name", name, Field.Store.YES));
 
-      String description = userObject.getDescription();
-      text.append(description);
+      String description = named.getDescription();
+      doc.add(new TextField("text", description, Field.Store.NO));
       doc.add(new TextField("description", description, Field.Store.YES));
-      doc.add(new TextField("text", text.toString(), Field.Store.YES));
-      doc.add(new StringField("id",((NamedObject) obj).getUuid(), Field.Store.YES));
+
+      if (named instanceof Login login) {
+        // allows finding of logins sharing a potentially
+        // compromised password. Note that the index
+        // should always remain in-memory with no disk storage
+        String secret = login.getSecret();
+        doc.add(new StringField("secret", secret, NO));
+
+        String pin = login.getPin();
+        doc.add(new StringField("pin", pin, NO)); // multi-value field pos inc 100
+
+        String identity = login.getIdentity();
+        doc.add(new TextField("text", identity, Field.Store.NO));
+        doc.add(new TextField("identity", identity, NO)); // multi-value field pos inc 100
+
+        String authAp = login.getAuthApp();
+        doc.add(new TextField("text", authAp, Field.Store.NO));
+        doc.add(new TextField("auth_app", authAp, NO)); // multi-value field pos inc 100
+
+        String loginUrl = login.getLoginUrl();
+        doc.add(new TextField("text", loginUrl, Field.Store.NO));
+        doc.add(new TextField("login_url", loginUrl, NO)); // multi-value field pos inc 100
+
+        String browserProfile = login.getBrowserProfile();
+        doc.add(new TextField("text", browserProfile, Field.Store.NO));
+        doc.add(new TextField("browser_profile", browserProfile, NO)); // multi-value field pos inc 100
+
+        for (Map.Entry<String, String> sq : login.getSecurityChallenges().entrySet()) {
+          String question = sq.getKey();
+          String answer = sq.getValue();
+          doc.add(new TextField("text", question, Field.Store.NO));
+          doc.add(new TextField("text", answer, Field.Store.NO));
+          doc.add(new TextField("question", question, NO)); // multi-value field pos inc 100
+          doc.add(new TextField("answer", answer, NO));
+        }
+      }
+
+
+      doc.add(new StringField("id", named.getUuid(), Field.Store.YES));
+
       try {
-        writer.updateDocument(new Term("id",userObject.getUuid()),doc);
+        writer.updateDocument(new Term("id", named.getUuid()), doc);
       } catch (IOException e) {
         //noinspection CallToPrintStackTrace
         e.printStackTrace(); // don't throw and fail the other docs
@@ -124,7 +192,7 @@ public class LuceneSearch {
       QueryParser parser = new QueryParser("text", analyzer);
       Query query = parser.parse(queryStr);
 
-      TopDocs topDocs = searcher.search(query, hits+offset);
+      TopDocs topDocs = searcher.search(query, hits + offset);
       try {
         List<Document> list = Arrays.stream(topDocs.scoreDocs).skip(offset).map(sd -> {
           try {
@@ -133,7 +201,7 @@ public class LuceneSearch {
             throw new RuntimeException(e);
           }
         }).toList();
-        SearchResult result = new SearchResult(list,topDocs.totalHits.value());
+        SearchResult result = new SearchResult(list, topDocs.totalHits.value());
         return result;
       } catch (RuntimeException r) {
         if (r.getCause() instanceof IOException) {
