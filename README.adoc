@@ -1,7 +1,6 @@
 = SecureSrc Identity Manager
 
 ifdef::env-github[]
-:imagesdir: https://gist.githubusercontent.com/path/to/gist/revision/dir/with/all/images
 :tip-caption: :bulb:
 :note-caption: :information_source:
 :important-caption: :heavy_exclamation_mark:
@@ -9,7 +8,6 @@ ifdef::env-github[]
 :warning-caption: :warning:
 endif::[]
 ifndef::env-github[]
-:imagesdir: ./
 endif::[]
 :toc:
 :toc-placement!:
