@@ -1,3 +1,18 @@
+ifdef::env-github[]
+:imagesdir:
+ https://gist.githubusercontent.com/path/to/gist/revision/dir/with/all/images
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:imagesdir: ./
+endif::[]
+:toc:
+:toc-placement!:
+
 = SecureSrc Identity Manager
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
@@ -5,7 +20,7 @@ One cannot trust code that cannot be understood, and one cannot trust code that 
 Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
 It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
 
-:toc:
+:toc:[]
 
 image::images/screenshot.png[]
 
