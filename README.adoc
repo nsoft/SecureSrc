@@ -22,6 +22,8 @@ It's not the prettiest program either, but it's a security app and for our purpo
 
 toc::[]
 
+Screenshot:
+
 image::images/screenshot.png[]
 
 IMPORTANT: The author of this software and this page is NOT a security researcher.
