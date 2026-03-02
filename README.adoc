@@ -2,7 +2,10 @@
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
 One cannot trust code that cannot be understood, and one cannot trust code that is unavailable for inspection.
-Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them. It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
+Therefore, this program endeavors to remain small, open source and clearly focused on exactly one task: encrypting your passwords, and making it easy to find them when you need them.
+It's not the prettiest program either, but it's a security app and for our purposes beauty beyond function is bloat. Bloat is the enemy because it can hide tricky code (or bugs).
+
+:toc:
 
 image::images/screenshot.png[]
 
@@ -84,8 +87,10 @@ This program will have default settings, but as computers get faster and if the 
 This program is not meant to secure Nuclear Launch codes or other world disaster level information. It's meant to provide a reasonable security for one's passwords. You will have the option of upping the security level by choosing stronger encryption, but you should not do this lightly. The defaults are what we have spent time trying to implement correctly. Choosing something other than the default will expose the possibility that you are using an insufficiently configured algorithm (or may simply not work in some cases, file a bug or pull request in such cases)
 
 This program only offers encryption at rest. It does NOT encrypt data while it is in memory and IS vulnerable to memory scanning.
-Keeping this program open and running when not in use is not advised. Even after close it is possible that the JVM will fail to erase strings from memory (just abandoning them when it shuts down), so it is recommended ONLY to run this program on a device you believe to be secure, and reboot the device on some regular basis.
-It is also helpful for improved security to only run on devices that have encrypted hard drives, since the operating system may at any time swap our (unprotected) memory into a swap file on disk. If the disk is not encrypted, that memory may be discoverable indefinitely.
+Keeping this program open and running when not in use is not advised.
+Even after close it is possible that the JVM will fail to erase strings from memory (just abandoning them when it shuts down), so it is recommended ONLY to run this program on a device you believe to be secure, and reboot the device on some regular basis.
+It is also helpful for improved security to only run on devices that have encrypted hard drives, since the operating system may at any time swap our (unprotected) memory into a swap file on disk.
+If the disk is not encrypted, that memory may be discoverable indefinitely.
 
 == Usage
 
@@ -132,11 +137,45 @@ java -jar securesrc-1.0.jar
 
 There are likely a variety of OS/distribution specific ways to run this from a shortcut or application, but I don't doo operating system tech support.This exercise is left for the reader.
 
+=== Usage / Features
+
+Due to its inherent simplicity the usage should be relatively straight forward.
+There are a few things that might not be instantly obvious however:
+
+ - Login information may be sorted into two levels of categories.
+   Infinite trees of categories are not a planned feature.
+   Use the search UI, and add descriptions that can be searched if you have vast numbers of logins.
+   Deep trees get hard to manage anyway (both for users and programmers).
+   This is not the mind-mapping tool you are looking for (Jedi hand wave)
+ - SecureSrc saves your data automatically if you browse to another node of the tree, or quit with the standard window closing UI for you operating system (x in the corner, red dot, etc.)
+ - SecureSrc keeps 9 backup copies of your save file.
+   If you do something you immediately regret, just rename one of these to ssim.dat.
+   Regrettable actions are irrecoverable after 10 edits/saves.
+ - The program never throws away old information (unless you explicitly tell it to via delete).
+   Updating login information creates a new object, and the historical object is hidden from view.
+   Historical login information is retained indefinitely.
+ - Historical versions of login information can be revealed via the Preferences drop down menu at the top.
+ - Historical records are grey/italic, and cannot be edited in any way.
+ - Only Logins have history, contexts and applications do not.
+ - The tree navigation on the left side provides right-click context menus that are customized based on which item you are clicking on.
+ - Item deletion can only be achieved via a context menu on the tree. If you stick to left clicks, and only use the buttons you'll never accidentally delete anything.
+ - The search panel on the right should work fine if you just type words normally, but if you want
+   something specific, you can use the https://lucene.apache.org/core/10_3_2/queryparser/org/apache/lucene/queryparser/classic/package-summary.html#proximity-searches-heading[lucene query syntax].
+   Field names will match the name in the UI, but in lowercase and spaces are replaced with the underscore ('_') character.
+   For example Login URL can be searched using `login_url:www.example.com`
+ - Either `F3` or `Ctrl-S` will take you directly to the search bar without needing to use the mouse.
+
+
+TIP: "tags" can be partly simulated by adding `#mycustomtag` to the description of related objects, and
+searching on your custom tag, but you do need to remember what tags you used. (you can also make a
+context named taglist and put them all in the description of that one context as a reminder)
+
 
 [#_how_could_it_fail]
 == How could it fail?
 
-No security is perfect.This program is meant to
+No security is perfect.
+This program is meant to:
 
 . Give you a file in which to store your passwords that is reasonably difficult to crack, and therefore reasonably safe to archive on Google Drive or other general purpose services.
 . Make finding a password among your 247 passwords a LOT faster than flipping through 35 pages in a notebook.
