@@ -79,8 +79,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
 import javax.swing.plaf.ColorUIResource;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.table.DefaultTableModel;
@@ -198,7 +196,7 @@ public class TopFrame extends JFrame {
   Pager pager = new Pager();
   private JMenuItem newEncryption;
   private JMenuItem changeMasterPassword;
-  private String dirtyLoginUuid;
+  private String dirtyLoginOrApplicationUuid;
   private String dirtyContextUuid;
   private String dirtyApplicationUuid;
   private int editingRow;
@@ -274,7 +272,7 @@ public class TopFrame extends JFrame {
           return;
         }
         if (sqTable.getEditorComponent() != null) {
-          TopFrame.this.dirtyLoginUuid = ((Login) getSelected().getUserObject()).getUuid();
+          TopFrame.this.dirtyLoginOrApplicationUuid = ((Login) getSelected().getUserObject()).getUuid();
         }
         int column = e.getColumn();
         if (column == 1 && !reacting) {
@@ -368,64 +366,61 @@ public class TopFrame extends JFrame {
     treeContextMenu.add(deleteApplicationPopupItem);
     treeContextMenu.add(deleteContextPopupItem);
     treeContextMenu.setVisible(false);
-    contextTree.addTreeSelectionListener(new TreeSelectionListener() {
-      @Override
-      public void valueChanged(TreeSelectionEvent e) {
-        if (pathPointsToDirtyLogin(e.getNewLeadSelectionPath())) {
-          // If we are already looking at the dirty login record,
-          // refreshing our panels will throw away the edits.
-          return;
-        }
-        writeIfDirty();
-        SwingUtilities.invokeLater(() -> {
-          TreePath selectionPath = e.getNewLeadSelectionPath();
-          if (selectionPath != null) {
-            DefaultMutableTreeNode lastPathComponent = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
+    contextTree.addTreeSelectionListener(e -> {
+      if (pathPointsToDirtyLogin(e.getNewLeadSelectionPath())) {
+        // If we are already looking at the dirty login record,
+        // refreshing our panels will throw away the edits.
+        return;
+      }
+      writeIfDirty();
+      SwingUtilities.invokeLater(() -> {
+        TreePath selectionPath = e.getNewLeadSelectionPath();
+        if (selectionPath != null) {
+          DefaultMutableTreeNode lastPathComponent = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
 
-            if (lastPathComponent != null) {
-              Object newObject = lastPathComponent.getUserObject();
-              if (newObject instanceof NamedObject named) {
-                if (null == findInTree(named.getUuid(), root)) {
-                  // outdated event, discard
-                  return;
-                }
-              }
-            }
-            TopFrame.this.setSelected(lastPathComponent);
-            if (lastPathComponent != null) {
-              Object userObject = lastPathComponent.getUserObject();
-              if (userObject instanceof String) {
-                TopFrame.this.clearContextPannel();
-              }
-              if (userObject instanceof Context context) {
-                TopFrame.this.updateContextPanel(context);
-              }
-              if (userObject instanceof Application application) {
-                TopFrame.this.updateContextPanel((Context) ((DefaultMutableTreeNode) lastPathComponent.getParent()).getUserObject());
-                TopFrame.this.updateApplicationPanel(application);
-              }
-              if (userObject instanceof Login login) {
-
-                DefaultMutableTreeNode parent = (DefaultMutableTreeNode) lastPathComponent.getParent();
-                if (parent.getUserObject() instanceof Login) {
-                  // we are an inactive login nested under an active login
-                  // need to go up an extra level.
-                  parent = (DefaultMutableTreeNode) parent.getParent();
-                }
-                DefaultMutableTreeNode application = parent;
-                DefaultMutableTreeNode context = (DefaultMutableTreeNode) application.getParent();
-                TopFrame.this.updateContextPanel((Context) context.getUserObject());
-                TopFrame.this.updateApplicationPanel((Application) application.getUserObject());
-                TopFrame.this.updateLoginPanel(login);
-                if (!login.isActive()) {
-                  TopFrame.this.enableLoginPanel(false);
-                  updateLoginButton.setEnabled(false);
-                }
+          if (lastPathComponent != null) {
+            Object newObject = lastPathComponent.getUserObject();
+            if (newObject instanceof NamedObject named) {
+              if (null == findInTree(named.getUuid(), root)) {
+                // outdated event, discard
+                return;
               }
             }
           }
-        });
-      }
+          TopFrame.this.setSelected(lastPathComponent);
+          if (lastPathComponent != null) {
+            Object userObject = lastPathComponent.getUserObject();
+            if (userObject instanceof String) {
+              TopFrame.this.clearContextPannel();
+            }
+            if (userObject instanceof Context context) {
+              TopFrame.this.updateContextPanel(context);
+            }
+            if (userObject instanceof Application application) {
+              TopFrame.this.updateContextPanel((Context) ((DefaultMutableTreeNode) lastPathComponent.getParent()).getUserObject());
+              TopFrame.this.updateApplicationPanel(application);
+            }
+            if (userObject instanceof Login login) {
+
+              DefaultMutableTreeNode parent = (DefaultMutableTreeNode) lastPathComponent.getParent();
+              if (parent.getUserObject() instanceof Login) {
+                // we are an inactive login nested under an active login
+                // need to go up an extra level.
+                parent = (DefaultMutableTreeNode) parent.getParent();
+              }
+              DefaultMutableTreeNode application = parent;
+              DefaultMutableTreeNode context = (DefaultMutableTreeNode) application.getParent();
+              TopFrame.this.updateContextPanel((Context) context.getUserObject());
+              TopFrame.this.updateApplicationPanel((Application) application.getUserObject());
+              TopFrame.this.updateLoginPanel(login);
+              if (!login.isActive()) {
+                TopFrame.this.enableLoginPanel(false);
+                updateLoginButton.setEnabled(false);
+              }
+            }
+          }
+        }
+      });
     });
 
     contextTree.addMouseListener(new MouseAdapter() {
@@ -526,7 +521,7 @@ public class TopFrame extends JFrame {
     contextTree.setSelectionPath(new TreePath(new Object[]{root}));
   }
 
-  private boolean writeIfDirty() {
+  private void writeIfDirty() {
     boolean someDirty = false;
     if (dirtyApplicationUuid != null) {
       someDirty = true;
@@ -536,16 +531,14 @@ public class TopFrame extends JFrame {
       someDirty = true;
       formToContext();
     }
-    if (dirtyLoginUuid != null && (windowClosing || !pathPointsToDirtyLogin(contextTree.getSelectionPath()))) {
+    if (dirtyLoginOrApplicationUuid != null && (windowClosing || !pathPointsToDirtyLogin(contextTree.getSelectionPath()))) {
       Object selectedObj = getSelectedObjFromTree();
       createLogin();
       reselectObjInTree(selectedObj);
-      return true;
     } else {
       if(someDirty) {
         persist();
       }
-      return someDirty;
     }
   }
 
@@ -577,7 +570,7 @@ public class TopFrame extends JFrame {
     if (selectionPath != null) {
       DefaultMutableTreeNode lastPathComponent = (DefaultMutableTreeNode) selectionPath.getLastPathComponent();
       if (lastPathComponent.getUserObject() instanceof Login login) {
-        return login.getUuid().equals(dirtyLoginUuid);
+        return login.getUuid().equals(dirtyLoginOrApplicationUuid);
       }
     }
     return false;
@@ -762,6 +755,7 @@ public class TopFrame extends JFrame {
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     } catch (ParseException ex) {
+      searchResults.setText("");
       JOptionPane.showMessageDialog(this, ex.getMessage());
     }
   }
@@ -870,10 +864,10 @@ public class TopFrame extends JFrame {
   }
 
   private void updateLogin() {
-    if (dirtyLoginUuid == null) {
+    if (dirtyLoginOrApplicationUuid == null) {
       JOptionPane.showMessageDialog(this, "Nothing about this login has been updated!");
     } else {
-      selectLogin(createLogin());
+      selectObject(createLogin());
     }
   }
 
@@ -881,12 +875,12 @@ public class TopFrame extends JFrame {
     // if this value is set login creation will find the identified dirty
     // login and the new one will share the same original id. We don't
     // want that so clear it out
-    dirtyLoginUuid = null;
-    selectLogin(createLogin());
+    dirtyLoginOrApplicationUuid = null;
+    selectObject(createLogin());
   }
 
-  private void selectLogin(Login login) {
-    DefaultMutableTreeNode inTree = findInTree(login.getUuid(), root);
+  private void selectObject(NamedObject object) {
+    DefaultMutableTreeNode inTree = findInTree(object.getUuid(), root);
     if (inTree != null) {
       contextTree.setSelectionPath(new TreePath(inTree.getPath()));
     }
@@ -910,26 +904,27 @@ public class TopFrame extends JFrame {
       securityChallenges.put(key, value);
     }
     String originalUUID = null;
-    DefaultMutableTreeNode earliestAncestorNode = findInTree(dirtyLoginUuid, root);
-    dirtyLoginUuid = null; // never create more than one!
+    DefaultMutableTreeNode earliestAncestorNode = findInTree(dirtyLoginOrApplicationUuid, root);
+    dirtyLoginOrApplicationUuid = null; // never create more than one!
     if (earliestAncestorNode != null) {
-      Login earliestAncestor = (Login) earliestAncestorNode.getUserObject();
-      originalUUID = earliestAncestor.getOriginalUUID();
+      if(earliestAncestorNode.getUserObject() instanceof Login earliestAncestor) {
+        originalUUID = earliestAncestor.getOriginalUUID();
+      }
     }
     return new Login(true, name, description, Instant.now(), identity, secret,
         authApp, pin, loginUrl, browserProfile, originalUUID, securityChallenges);
   }
 
-  private Login createLogin() {
+  private NamedObject createLogin() {
     TreePath selectionPath;
-    Login previous = null;
-    DefaultMutableTreeNode inTree = findInTree(dirtyLoginUuid, root);
+    NamedObject previous = null;
+    DefaultMutableTreeNode inTree = findInTree(dirtyLoginOrApplicationUuid, root);
     if (inTree == null) {
       // we are (hopefully) adding a new login via the Add New button
       selectionPath = contextTree.getSelectionPath();
     } else {
       // we are leaving a dirty login, or explicitly clicked update
-      previous = (Login) inTree.getUserObject();
+      previous = (NamedObject) inTree.getUserObject();
       selectionPath = new TreePath(inTree.getPath());
     }
     if (selectionPath != null) {
@@ -947,18 +942,19 @@ public class TopFrame extends JFrame {
           try {
             Login result = loginFromFormFields();
             newLogin = result;
-            if (previous != null) {
-              previous.inactivate();
+            if (previous instanceof Login login) {
+              login.inactivate();
             }
             app.getLogins().add(result);
             buildTree();
             persisted = persist();
+            search();
             return result;
           } finally {
             if (!persisted) {
               newLogin = null;
-              if (previous != null) {
-                previous.activate();
+              if (previous instanceof Login login) {
+                login.activate();
               }
               app.getLogins().remove(newLogin);
             }
@@ -1068,7 +1064,7 @@ public class TopFrame extends JFrame {
     padTable(model, 3);
     sqTable.tableChanged(new TableModelEvent(model));
     updateLoginButton.setEnabled(true);
-    dirtyLoginUuid = null; // only interested in user changes
+    dirtyLoginOrApplicationUuid = null; // only interested in user changes
   }
 
   private static void padTable(DefaultTableModel model, int minrows) {
@@ -2161,8 +2157,8 @@ public class TopFrame extends JFrame {
     public void insertUpdate(DocumentEvent e) {
       DefaultMutableTreeNode node = TopFrame.this.getSelected();
       Object userObject = node.getUserObject();
-      if (userObject instanceof Login login) {
-        dirtyLoginUuid = login.getUuid();
+      if (userObject instanceof NamedObject loginOrApplication) {
+        dirtyLoginOrApplicationUuid = loginOrApplication.getUuid();
       }
     }
 
@@ -2171,7 +2167,7 @@ public class TopFrame extends JFrame {
       DefaultMutableTreeNode node = TopFrame.this.getSelected();
       Object userObject = node.getUserObject();
       if (userObject instanceof Login login) {
-        dirtyLoginUuid = login.getUuid();
+        dirtyLoginOrApplicationUuid = login.getUuid();
       }
     }
 
