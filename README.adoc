@@ -1,3 +1,5 @@
+= SecureSrc Identity Manager
+
 ifdef::env-github[]
 :imagesdir:
  https://gist.githubusercontent.com/path/to/gist/revision/dir/with/all/images
@@ -13,7 +15,6 @@ endif::[]
 :toc:
 :toc-placement!:
 
-= SecureSrc Identity Manager
 
 This is an identity management (aka password manager) program that is centered around simplicity and transparency.
 One cannot trust code that cannot be understood, and one cannot trust code that is unavailable for inspection.
